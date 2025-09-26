@@ -1,0 +1,4 @@
+venv/*
+app/alembic/*
+app/.env
+.env

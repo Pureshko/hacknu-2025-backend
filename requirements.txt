@@ -1,0 +1,12 @@
+fastapi
+fastapi_sso
+numpy
+passlib
+pydantic
+pydantic_core
+pydantic_settings
+python_jose
+redis
+SQLAlchemy=
+sqlmodel
+alembic
