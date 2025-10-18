@@ -3,10 +3,7 @@ import json
 from urllib.parse import urlencode
 from config import API_KEY, DEFAULT_REGION_ID
 from get_coordinates import get_lat_and_lon
-<<<<<<< HEAD
-=======
 from get_details import enrich_details
->>>>>>> c29e14ead9c744e707a0699f929ea2c61be6e6bf
 
 BASE_URL = "https://catalog.api.2gis.com/3.0/items"
 
