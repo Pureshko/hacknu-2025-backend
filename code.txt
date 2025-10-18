@@ -2,10 +2,14 @@
 
 ├── .gitignore
 ├── backend
+    ├── Dockerfile
+    ├── alembic.ini
     ├── app
     │   ├── ai
     │   │   ├── description_gen.py
     │   │   └── scoring_agent.py
+    │   ├── alembic
+    │   │   └── env.py
     │   ├── api
     │   │   ├── export.py
     │   │   ├── parsing.py
@@ -18,8 +22,11 @@
     │   │   └── gis2_parser.py
     │   └── schemas.py
     └── requirements.txt
+├── code.txt
+├── docker-compose.yml
 └── frontend
     ├── .gitignore
+    ├── Dockerfile
     ├── README.md
     ├── eslint.config.js
     ├── index.html
@@ -98,90 +105,203 @@
 
 
 --------------------------------------------------------------------------------
+/backend/Dockerfile:
+--------------------------------------------------------------------------------
+ 1 | FROM python:3.12-slim
+ 2 | 
+ 3 | WORKDIR /app
+ 4 | 
+ 5 | COPY requirements.txt .
+ 6 | RUN pip install --no-cache-dir -r requirements.txt
+ 7 | 
+ 8 | COPY . .
+ 9 | 
+10 | CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+
+--------------------------------------------------------------------------------
+/backend/alembic.ini:
+--------------------------------------------------------------------------------
+ 1 | [alembic]
+ 2 | script_location = alembic
+ 3 | prepend_sys_path = .
+ 4 | sqlalchemy.url = postgresql://postgres:password@localhost:5432/mytravel
+ 5 | 
+ 6 | [loggers]
+ 7 | keys = root,sqlalchemy,alembic
+ 8 | 
+ 9 | [handlers]
+10 | keys = console
+11 | 
+12 | [formatters]
+13 | keys = generic
+14 | 
+15 | [logger_root]
+16 | level = WARN
+17 | handlers = console
+18 | qualname =
+19 | 
+20 | [logger_sqlalchemy]
+21 | level = WARN
+22 | handlers =
+23 | qualname = sqlalchemy.engine
+24 | 
+25 | [logger_alembic]
+26 | level = INFO
+27 | handlers =
+28 | qualname = alembic
+29 | 
+30 | [handler_console]
+31 | class = StreamHandler
+32 | args = (sys.stderr,)
+33 | level = NOTSET
+34 | formatter = generic
+35 | 
+36 | [formatter_generic]
+37 | format = %(levelname)-5.5s [%(name)s] %(message)s
+38 | datefmt = %H:%M:%S
+
+
+--------------------------------------------------------------------------------
 /backend/app/ai/description_gen.py:
 --------------------------------------------------------------------------------
- 1 | from openai import AsyncOpenAI
- 2 | from app.config import get_settings
- 3 | from app.models import CategoryEnum
- 4 | 
- 5 | settings = get_settings()
- 6 | client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
- 7 | 
- 8 | 
- 9 | class OutreachGenerator:
-10 |     """Генератор персонализированных сообщений для привлечения"""
-11 | 
-12 |     async def generate_outreach(
-13 |         self, venue_data: dict, channel: str = "whatsapp"
-14 |     ) -> str:
-15 |         """
-16 |         Генерирует персонализированное сообщение
-17 |         channel: 'whatsapp', 'email', 'instagram', 'telegram'
-18 |         """
-19 | 
-20 |         templates = {
-21 |             "whatsapp": "короткое и дружелюбное",
-22 |             "email": "формальное и подробное",
-23 |             "instagram": "неформальное с эмодзи",
-24 |             "telegram": "лаконичное и понятное",
-25 |         }
-26 | 
-27 |         style = templates.get(channel, "дружелюбное")
-28 | 
-29 |         prompt = f"""Создай персонализированное сообщение для привлечения партнера на платформу MyTravel.kz.
-30 | 
-31 | Объект: {venue_data.get('name')}
-32 | Локация: {venue_data.get('address')}
-33 | Канал: {channel}
-34 | Стиль: {style}
-35 | 
-36 | Информация о MyTravel.kz:
-37 | - Топовая платформа бронирования туров в Казахстане
-38 | - 10,000+ активных туристов ежемесячно
-39 | - PMS система для управления бронированиями
-40 | - Продвижение для премиум объектов
-41 | - Рассрочка и страхование для туристов
-42 | 
-43 | Требования:
-44 | - Персонализация (упомяни название объекта и локацию)
-45 | - Подчеркни преимущества платформы
-46 | - Добавь CTA (call-to-action)
-47 | - Длина: 3-5 предложений
-48 | - Дружелюбный тон
-49 | 
-50 | Пиши на русском языке."""
-51 | 
-52 |         try:
-53 |             response = await client.chat.completions.create(
-54 |                 model=settings.OPENAI_MODEL,
-55 |                 messages=[{"role": "user", "content": prompt}],
-56 |                 temperature=0.8,
-57 |                 max_tokens=300,
-58 |             )
-59 | 
-60 |             return response.choices[0].message.content.strip()
-61 | 
-62 |         except Exception as e:
-63 |             print(f"Outreach generation error: {e}")
-64 |             return self._get_fallback_template(venue_data, channel)
-65 | 
-66 |     def _get_fallback_template(self, venue_data: dict, channel: str) -> str:
-67 |         """Резервный шаблон если AI не сработал"""
-68 |         name = venue_data.get("name", "ваш объект")
-69 |         location = venue_data.get("address", "")
-70 | 
-71 |         return f"""Привет! 👋
-72 | 
-73 | Мы заметили ваш замечательный {name} в {location}.
-74 | 
-75 | MyTravel.kz — топовая платформа бронирования в Казахстане:
-76 | ✅ 10,000+ туристов ежемесячно
-77 | ✅ Удобная PMS система
-78 | ✅ Рост бронирований
-79 | 
-80 | Хотим добавить вас в каталог. Обсудим? 
-81 | 
-82 | https://mytravel.kz/demo"""
+  1 | from openai import AsyncOpenAI
+  2 | from app.config import get_settings
+  3 | from app.models import CategoryEnum
+  4 | 
+  5 | settings = get_settings()
+  6 | client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+  7 | 
+  8 | 
+  9 | class DescriptionGenerator:
+ 10 |     """Генератор AI-описаний для объектов"""
+ 11 | 
+ 12 |     async def generate_description(self, venue_data: dict) -> str:
+ 13 |         """Генерирует привлекательное описание объекта"""
+ 14 |         
+ 15 |         prompt = f"""Создай привлекательное описание для туристического объекта на платформе MyTravel.kz.
+ 16 | 
+ 17 | Объект: {venue_data.get('name')}
+ 18 | Категория: {venue_data.get('category')}
+ 19 | Адрес: {venue_data.get('address')}
+ 20 | Удобства: {', '.join(venue_data.get('amenities', []))}
+ 21 | Оригинальное описание: {venue_data.get('description', 'Не указано')}
+ 22 | 
+ 23 | Требования:
+ 24 | - Длина: 3-4 абзаца
+ 25 | - Подчеркни уникальность и преимущества
+ 26 | - Упомяни удобства
+ 27 | - Создай атмосферу и эмоциональную привлекательность
+ 28 | - Закончи призывом к бронированию
+ 29 | - Пиши на русском языке
+ 30 | 
+ 31 | Пример структуры:
+ 32 | 1. Вступление (что это за место)
+ 33 | 2. Описание условий и удобств
+ 34 | 3. Уникальные особенности
+ 35 | 4. Призыв к действию"""
+ 36 | 
+ 37 |         try:
+ 38 |             response = await client.chat.completions.create(
+ 39 |                 model=settings.OPENAI_MODEL,
+ 40 |                 messages=[{"role": "user", "content": prompt}],
+ 41 |                 temperature=0.7,
+ 42 |                 max_tokens=500,
+ 43 |             )
+ 44 |             
+ 45 |             return response.choices[0].message.content.strip()
+ 46 |             
+ 47 |         except Exception as e:
+ 48 |             print(f"Description generation error: {e}")
+ 49 |             return self._get_fallback_description(venue_data)
+ 50 |     
+ 51 |     def _get_fallback_description(self, venue_data: dict) -> str:
+ 52 |         """Резервное описание если AI не сработал"""
+ 53 |         name = venue_data.get('name', 'объект')
+ 54 |         category = venue_data.get('category', 'туристический объект')
+ 55 |         
+ 56 |         return f"""Добро пожаловать в {name}!
+ 57 | 
+ 58 | Мы предлагаем комфортабельное размещение в категории {category}. 
+ 59 | Наш объект оборудован всем необходимым для приятного отдыха.
+ 60 | 
+ 61 | Забронируйте проживание через MyTravel.kz и получите лучшие условия!"""
+ 62 | 
+ 63 | 
+ 64 | class OutreachGenerator:
+ 65 |     """Генератор персонализированных сообщений для привлечения"""
+ 66 | 
+ 67 |     async def generate_outreach(
+ 68 |         self, venue_data: dict, channel: str = "whatsapp"
+ 69 |     ) -> str:
+ 70 |         """
+ 71 |         Генерирует персонализированное сообщение
+ 72 |         channel: 'whatsapp', 'email', 'instagram', 'telegram'
+ 73 |         """
+ 74 | 
+ 75 |         templates = {
+ 76 |             "whatsapp": "короткое и дружелюбное",
+ 77 |             "email": "формальное и подробное",
+ 78 |             "instagram": "неформальное с эмодзи",
+ 79 |             "telegram": "лаконичное и понятное",
+ 80 |         }
+ 81 | 
+ 82 |         style = templates.get(channel, "дружелюбное")
+ 83 | 
+ 84 |         prompt = f"""Создай персонализированное сообщение для привлечения партнера на платформу MyTravel.kz.
+ 85 | 
+ 86 | Объект: {venue_data.get('name')}
+ 87 | Локация: {venue_data.get('address')}
+ 88 | Канал: {channel}
+ 89 | Стиль: {style}
+ 90 | 
+ 91 | Информация о MyTravel.kz:
+ 92 | - Топовая платформа бронирования туров в Казахстане
+ 93 | - 10,000+ активных туристов ежемесячно
+ 94 | - PMS система для управления бронированиями
+ 95 | - Продвижение для премиум объектов
+ 96 | - Рассрочка и страхование для туристов
+ 97 | 
+ 98 | Требования:
+ 99 | - Персонализация (упомяни название объекта и локацию)
+100 | - Подчеркни преимущества платформы
+101 | - Добавь CTA (call-to-action)
+102 | - Длина: 3-5 предложений
+103 | - Дружелюбный тон
+104 | 
+105 | Пиши на русском языке."""
+106 | 
+107 |         try:
+108 |             response = await client.chat.completions.create(
+109 |                 model=settings.OPENAI_MODEL,
+110 |                 messages=[{"role": "user", "content": prompt}],
+111 |                 temperature=0.8,
+112 |                 max_tokens=300,
+113 |             )
+114 | 
+115 |             return response.choices[0].message.content.strip()
+116 | 
+117 |         except Exception as e:
+118 |             print(f"Outreach generation error: {e}")
+119 |             return self._get_fallback_template(venue_data, channel)
+120 | 
+121 |     def _get_fallback_template(self, venue_data: dict, channel: str) -> str:
+122 |         """Резервный шаблон если AI не сработал"""
+123 |         name = venue_data.get("name", "ваш объект")
+124 |         location = venue_data.get("address", "")
+125 | 
+126 |         return f"""Привет! 👋
+127 | 
+128 | Мы заметили ваш замечательный {name} в {location}.
+129 | 
+130 | MyTravel.kz — топовая платформа бронирования в Казахстане:
+131 | ✅ 10,000+ туристов ежемесячно
+132 | ✅ Удобная PMS система
+133 | ✅ Рост бронирований
+134 | 
+135 | Хотим добавить вас в каталог. Обсудим? 
+136 | 
+137 | https://mytravel.kz/demo"""
 
 
 --------------------------------------------------------------------------------
@@ -193,7 +313,7 @@
   4 | from typing import Dict, Tuple
   5 | 
   6 | settings = get_settings()
-  7 | client = AsyncOpenAI(api_key=settings.OPEN_API_KEY)
+  7 | client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
   8 | 
   9 | 
  10 | class ScoringAgent:
@@ -344,6 +464,58 @@
 
 
 --------------------------------------------------------------------------------
+/backend/app/alembic/env.py:
+--------------------------------------------------------------------------------
+ 1 | from logging.config import fileConfig
+ 2 | from sqlalchemy import engine_from_config, pool
+ 3 | from alembic import context
+ 4 | from app.models import Base
+ 5 | from app.config import get_settings
+ 6 | 
+ 7 | config = context.config
+ 8 | settings = get_settings()
+ 9 | config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+10 | 
+11 | if config.config_file_name is not None:
+12 |     fileConfig(config.config_file_name)
+13 | 
+14 | target_metadata = Base.metadata
+15 | 
+16 | 
+17 | def run_migrations_offline() -> None:
+18 |     url = config.get_main_option("sqlalchemy.url")
+19 |     context.configure(
+20 |         url=url,
+21 |         target_metadata=target_metadata,
+22 |         literal_binds=True,
+23 |         dialect_opts={"paramstyle": "named"},
+24 |     )
+25 | 
+26 |     with context.begin_transaction():
+27 |         context.run_migrations()
+28 | 
+29 | 
+30 | def run_migrations_online() -> None:
+31 |     connectable = engine_from_config(
+32 |         config.get_section(config.config_ini_section, {}),
+33 |         prefix="sqlalchemy.",
+34 |         poolclass=pool.NullPool,
+35 |     )
+36 | 
+37 |     with connectable.connect() as connection:
+38 |         context.configure(connection=connection, target_metadata=target_metadata)
+39 | 
+40 |         with context.begin_transaction():
+41 |             context.run_migrations()
+42 | 
+43 | 
+44 | if context.is_offline_mode():
+45 |     run_migrations_offline()
+46 | else:
+47 |     run_migrations_online()
+
+
+--------------------------------------------------------------------------------
 /backend/app/api/export.py:
 --------------------------------------------------------------------------------
  1 | from fastapi import APIRouter, Depends, Response
@@ -449,105 +621,107 @@
   5 | from app.schemas import ParsingRequest
   6 | from app.parsers.gis2_parser import Gis2Parser
   7 | from app.ai.scoring_agent import ScoringAgent
-  8 | from app.ai.description_gen import DescriptionGenerator
-  9 | from app.ai.outreach_gen import OutreachGenerator
- 10 | 
- 11 | router = APIRouter(prefix="/parsing", tags=["parsing"])
+  8 | from app.ai.description_gen import (
+  9 |     DescriptionGenerator,
+ 10 |     OutreachGenerator,
+ 11 | )
  12 | 
- 13 | gis2_parser = Gis2Parser()
- 14 | scoring_agent = ScoringAgent()
- 15 | description_gen = DescriptionGenerator()
- 16 | outreach_gen = OutreachGenerator()
- 17 | 
- 18 | 
- 19 | async def parse_and_save_task(
- 20 |     query: str, region: str, limit: int, db: Session
- 21 | ):
- 22 |     """Фоновая задача парсинга"""
- 23 |     venues_data = await gis2_parser.search_venues(query, region, limit)
- 24 | 
- 25 |     for venue_data in venues_data:
- 26 |         # Проверяем дубликаты
- 27 |         existing = (
- 28 |             db.query(Venue).filter(Venue.name == venue_data["name"]).first()
- 29 |         )
- 30 |         if existing:
- 31 |             continue
- 32 | 
- 33 |         # Категоризация
- 34 |         category = scoring_agent.categorize_venue(venue_data)
- 35 | 
- 36 |         # Скоринг
- 37 |         score, lead_status = await scoring_agent.score_venue(venue_data)
- 38 | 
- 39 |         # Создаем объект
- 40 |         venue = Venue(
- 41 |             name=venue_data["name"],
- 42 |             address=venue_data["address"],
- 43 |             latitude=venue_data["latitude"],
- 44 |             longitude=venue_data["longitude"],
- 45 |             phone=venue_data.get("phone"),
- 46 |             website=venue_data.get("website"),
- 47 |             category=category,
- 48 |             score=score,
- 49 |             lead_status=lead_status,
- 50 |             source=venue_data["source"],
- 51 |         )
- 52 | 
- 53 |         db.add(venue)
+ 13 | router = APIRouter(prefix="/parsing", tags=["parsing"])
+ 14 | 
+ 15 | gis2_parser = Gis2Parser()
+ 16 | scoring_agent = ScoringAgent()
+ 17 | description_gen = DescriptionGenerator()
+ 18 | outreach_gen = OutreachGenerator()
+ 19 | 
+ 20 | 
+ 21 | async def parse_and_save_task(
+ 22 |     query: str, region: str, limit: int, db: Session
+ 23 | ):
+ 24 |     """Фоновая задача парсинга"""
+ 25 |     venues_data = await gis2_parser.search_venues(query, region, limit)
+ 26 | 
+ 27 |     for venue_data in venues_data:
+ 28 |         # Проверяем дубликаты
+ 29 |         existing = (
+ 30 |             db.query(Venue).filter(Venue.name == venue_data["name"]).first()
+ 31 |         )
+ 32 |         if existing:
+ 33 |             continue
+ 34 | 
+ 35 |         # Категоризация
+ 36 |         category = scoring_agent.categorize_venue(venue_data)
+ 37 | 
+ 38 |         # Скоринг
+ 39 |         score, lead_status = await scoring_agent.score_venue(venue_data)
+ 40 | 
+ 41 |         # Создаем объект
+ 42 |         venue = Venue(
+ 43 |             name=venue_data["name"],
+ 44 |             address=venue_data["address"],
+ 45 |             latitude=venue_data["latitude"],
+ 46 |             longitude=venue_data["longitude"],
+ 47 |             phone=venue_data.get("phone"),
+ 48 |             website=venue_data.get("website"),
+ 49 |             category=category,
+ 50 |             score=score,
+ 51 |             lead_status=lead_status,
+ 52 |             source=venue_data["source"],
+ 53 |         )
  54 | 
- 55 |     db.commit()
+ 55 |         db.add(venue)
  56 | 
- 57 | 
- 58 | @router.post("/start")
- 59 | async def start_parsing(
- 60 |     request: ParsingRequest,
- 61 |     background_tasks: BackgroundTasks,
- 62 |     db: Session = Depends(get_db),
- 63 | ):
- 64 |     """Запустить парсинг в фоне"""
- 65 |     background_tasks.add_task(
- 66 |         parse_and_save_task, request.query, request.region, request.limit, db
- 67 |     )
- 68 | 
- 69 |     return {
- 70 |         "status": "started",
- 71 |         "message": f"Парсинг запущен: {request.query} в {request.region}",
- 72 |     }
- 73 | 
- 74 | 
- 75 | @router.post("/generate-all-content")
- 76 | async def generate_all_content(
- 77 |     background_tasks: BackgroundTasks, db: Session = Depends(get_db)
- 78 | ):
- 79 |     """Генерирует контент для всех объектов без AI-описаний"""
- 80 | 
- 81 |     async def generate_task():
- 82 |         venues = (
- 83 |             db.query(Venue).filter(Venue.ai_description.is_(None)).all()
- 84 |         )
- 85 | 
- 86 |         for venue in venues:
- 87 |             venue_data = {
- 88 |                 "name": venue.name,
- 89 |                 "category": venue.category,
- 90 |                 "address": venue.address,
- 91 |                 "description": venue.description,
- 92 |                 "amenities": venue.amenities or [],
- 93 |             }
- 94 | 
- 95 |             venue.ai_description = await description_gen.generate_description(
- 96 |                 venue_data
- 97 |             )
- 98 |             venue.ai_outreach_message = await outreach_gen.generate_outreach(
- 99 |                 venue_data
-100 |             )
-101 | 
-102 |         db.commit()
+ 57 |     db.commit()
+ 58 | 
+ 59 | 
+ 60 | @router.post("/start")
+ 61 | async def start_parsing(
+ 62 |     request: ParsingRequest,
+ 63 |     background_tasks: BackgroundTasks,
+ 64 |     db: Session = Depends(get_db),
+ 65 | ):
+ 66 |     """Запустить парсинг в фоне"""
+ 67 |     background_tasks.add_task(
+ 68 |         parse_and_save_task, request.query, request.region, request.limit, db
+ 69 |     )
+ 70 | 
+ 71 |     return {
+ 72 |         "status": "started",
+ 73 |         "message": f"Парсинг запущен: {request.query} в {request.region}",
+ 74 |     }
+ 75 | 
+ 76 | 
+ 77 | @router.post("/generate-all-content")
+ 78 | async def generate_all_content(
+ 79 |     background_tasks: BackgroundTasks, db: Session = Depends(get_db)
+ 80 | ):
+ 81 |     """Генерирует контент для всех объектов без AI-описаний"""
+ 82 | 
+ 83 |     async def generate_task():
+ 84 |         venues = (
+ 85 |             db.query(Venue).filter(Venue.ai_description.is_(None)).all()
+ 86 |         )
+ 87 | 
+ 88 |         for venue in venues:
+ 89 |             venue_data = {
+ 90 |                 "name": venue.name,
+ 91 |                 "category": venue.category,
+ 92 |                 "address": venue.address,
+ 93 |                 "description": venue.description,
+ 94 |                 "amenities": venue.amenities or [],
+ 95 |             }
+ 96 | 
+ 97 |             venue.ai_description = await description_gen.generate_description(
+ 98 |                 venue_data
+ 99 |             )
+100 |             venue.ai_outreach_message = await outreach_gen.generate_outreach(
+101 |                 venue_data
+102 |             )
 103 | 
-104 |     background_tasks.add_task(generate_task)
+104 |         db.commit()
 105 | 
-106 |     return {"status": "started", "message": "Генерация контента запущена"}
+106 |     background_tasks.add_task(generate_task)
+107 | 
+108 |     return {"status": "started", "message": "Генерация контента запущена"}
 
 
 --------------------------------------------------------------------------------
@@ -560,8 +734,8 @@
   5 | from app.models import Venue, LeadStatus, CategoryEnum
   6 | from app.schemas import VenueResponse, VenueCreate
   7 | from app.ai.scoring_agent import ScoringAgent
-  8 | from app.ai.description_gen import DescriptionGenerator
-  9 | from app.ai.outreach_gen import OutreachGenerator
+  8 | from app.ai.description_gen import DescriptionGenerator, OutreachGenerator
+  9 | from sqlalchemy import func
  10 | 
  11 | router = APIRouter(prefix="/venues", tags=["venues"])
  12 | 
@@ -680,7 +854,7 @@
 125 |     )
 126 | 
 127 |     avg_score = db.query(Venue).with_entities(
-128 |         db.func.avg(Venue.score)
+128 |         func.avg(Venue.score)
 129 |     ).scalar() or 0
 130 | 
 131 |     return {
@@ -700,11 +874,30 @@
  3 | 
  4 | 
  5 | class Settings(BaseSettings):
- 6 |     
- 7 | 
- 8 | @lru_cache()
- 9 | def get_settings():
-10 |     return Settings()
+ 6 |     # API Config
+ 7 |     API_TITLE: str = "MyTravel AI Parser API"
+ 8 |     API_VERSION: str = "1.0.0"
+ 9 |     
+10 |     # Database
+11 |     DATABASE_URL: str
+12 |     
+13 |     # OpenAI
+14 |     OPENAI_API_KEY: str
+15 |     OPENAI_MODEL: str = "gpt-4o-mini"
+16 |     
+17 |     # 2GIS
+18 |     GIS2_API_KEY: str
+19 |     
+20 |     GOOGLE_MAPS_API_KEY: str
+21 |     
+22 |     class Config:
+23 |         env_file = ".env"
+24 |         case_sensitive = True
+25 | 
+26 | 
+27 | @lru_cache()
+28 | def get_settings():
+29 |     return Settings()
 
 
 --------------------------------------------------------------------------------
@@ -1020,6 +1213,1425 @@
 
 
 --------------------------------------------------------------------------------
+/code.txt:
+--------------------------------------------------------------------------------
+   1 | 
+   2 | 
+   3 | ├── .gitignore
+   4 | ├── backend
+   5 |     ├── app
+   6 |     │   ├── ai
+   7 |     │   │   ├── description_gen.py
+   8 |     │   │   └── scoring_agent.py
+   9 |     │   ├── api
+  10 |     │   │   ├── export.py
+  11 |     │   │   ├── parsing.py
+  12 |     │   │   └── venues.py
+  13 |     │   ├── config.py
+  14 |     │   ├── database.py
+  15 |     │   ├── main.py
+  16 |     │   ├── models.py
+  17 |     │   ├── parsers
+  18 |     │   │   └── gis2_parser.py
+  19 |     │   └── schemas.py
+  20 |     └── requirements.txt
+  21 | └── frontend
+  22 |     ├── .gitignore
+  23 |     ├── README.md
+  24 |     ├── eslint.config.js
+  25 |     ├── index.html
+  26 |     ├── package.json
+  27 |     ├── public
+  28 |         └── vite.svg
+  29 |     ├── src
+  30 |         ├── App.css
+  31 |         ├── App.jsx
+  32 |         ├── assets
+  33 |         │   └── react.svg
+  34 |         ├── index.css
+  35 |         └── main.jsx
+  36 |     └── vite.config.js
+  37 | 
+  38 | 
+  39 | /.gitignore:
+  40 | --------------------------------------------------------------------------------
+  41 |  1 | __pycache__/
+  42 |  2 | *.py[cod]
+  43 |  3 | *.log
+  44 |  4 | *.env
+  45 |  5 | *.venv
+  46 |  6 | .env.*
+  47 |  7 | venv/
+  48 |  8 | .env
+  49 |  9 | .DS_Store
+  50 | 10 | *.swp
+  51 | 11 | *.swo
+  52 | 12 | .idea/
+  53 | 13 | .vscode/
+  54 | 14 | *.bak
+  55 | 15 | *.tmp
+  56 | 16 | *.out
+  57 | 17 | 
+  58 | 18 | *.egg-info/
+  59 | 19 | dist/
+  60 | 20 | build/
+  61 | 21 | *.spec
+  62 | 22 | .mypy_cache/
+  63 | 23 | .pytest_cache/
+  64 | 24 | coverage/
+  65 | 25 | htmlcov/
+  66 | 26 | 
+  67 | 27 | *.db
+  68 | 28 | instance/
+  69 | 29 | *.sqlite3
+  70 | 30 | 
+  71 | 31 | node_modules/
+  72 | 32 | npm-debug.log*
+  73 | 33 | yarn-debug.log*
+  74 | 34 | yarn-error.log*
+  75 | 35 | .pnpm-debug.log*
+  76 | 36 | package-lock.json
+  77 | 37 | yarn.lock
+  78 | 38 | 
+  79 | 39 | frontend/build/
+  80 | 40 | frontend/dist/
+  81 | 41 | backend/__pycache__/
+  82 | 42 | backend/staticfiles/
+  83 | 43 | backend/media/
+  84 | 44 | backend/config.py
+  85 | 45 | 
+  86 | 46 | # docker
+  87 | 47 | *.pid
+  88 | 48 | *.seed
+  89 | 49 | *.pid.lock
+  90 | 50 | *.sock
+  91 | 51 | *.tar
+  92 | 52 | .env.docker
+  93 | 53 | docker-compose.override.yml
+  94 | 54 | 
+  95 | 55 | Thumbs.db
+  96 | 56 | ehthumbs.db
+  97 | 57 | Desktop.ini
+  98 | 
+  99 | 
+ 100 | --------------------------------------------------------------------------------
+ 101 | /backend/app/ai/description_gen.py:
+ 102 | --------------------------------------------------------------------------------
+ 103 |  1 | from openai import AsyncOpenAI
+ 104 |  2 | from app.config import get_settings
+ 105 |  3 | from app.models import CategoryEnum
+ 106 |  4 | 
+ 107 |  5 | settings = get_settings()
+ 108 |  6 | client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+ 109 |  7 | 
+ 110 |  8 | 
+ 111 |  9 | class OutreachGenerator:
+ 112 | 10 |     """Генератор персонализированных сообщений для привлечения"""
+ 113 | 11 | 
+ 114 | 12 |     async def generate_outreach(
+ 115 | 13 |         self, venue_data: dict, channel: str = "whatsapp"
+ 116 | 14 |     ) -> str:
+ 117 | 15 |         """
+ 118 | 16 |         Генерирует персонализированное сообщение
+ 119 | 17 |         channel: 'whatsapp', 'email', 'instagram', 'telegram'
+ 120 | 18 |         """
+ 121 | 19 | 
+ 122 | 20 |         templates = {
+ 123 | 21 |             "whatsapp": "короткое и дружелюбное",
+ 124 | 22 |             "email": "формальное и подробное",
+ 125 | 23 |             "instagram": "неформальное с эмодзи",
+ 126 | 24 |             "telegram": "лаконичное и понятное",
+ 127 | 25 |         }
+ 128 | 26 | 
+ 129 | 27 |         style = templates.get(channel, "дружелюбное")
+ 130 | 28 | 
+ 131 | 29 |         prompt = f"""Создай персонализированное сообщение для привлечения партнера на платформу MyTravel.kz.
+ 132 | 30 | 
+ 133 | 31 | Объект: {venue_data.get('name')}
+ 134 | 32 | Локация: {venue_data.get('address')}
+ 135 | 33 | Канал: {channel}
+ 136 | 34 | Стиль: {style}
+ 137 | 35 | 
+ 138 | 36 | Информация о MyTravel.kz:
+ 139 | 37 | - Топовая платформа бронирования туров в Казахстане
+ 140 | 38 | - 10,000+ активных туристов ежемесячно
+ 141 | 39 | - PMS система для управления бронированиями
+ 142 | 40 | - Продвижение для премиум объектов
+ 143 | 41 | - Рассрочка и страхование для туристов
+ 144 | 42 | 
+ 145 | 43 | Требования:
+ 146 | 44 | - Персонализация (упомяни название объекта и локацию)
+ 147 | 45 | - Подчеркни преимущества платформы
+ 148 | 46 | - Добавь CTA (call-to-action)
+ 149 | 47 | - Длина: 3-5 предложений
+ 150 | 48 | - Дружелюбный тон
+ 151 | 49 | 
+ 152 | 50 | Пиши на русском языке."""
+ 153 | 51 | 
+ 154 | 52 |         try:
+ 155 | 53 |             response = await client.chat.completions.create(
+ 156 | 54 |                 model=settings.OPENAI_MODEL,
+ 157 | 55 |                 messages=[{"role": "user", "content": prompt}],
+ 158 | 56 |                 temperature=0.8,
+ 159 | 57 |                 max_tokens=300,
+ 160 | 58 |             )
+ 161 | 59 | 
+ 162 | 60 |             return response.choices[0].message.content.strip()
+ 163 | 61 | 
+ 164 | 62 |         except Exception as e:
+ 165 | 63 |             print(f"Outreach generation error: {e}")
+ 166 | 64 |             return self._get_fallback_template(venue_data, channel)
+ 167 | 65 | 
+ 168 | 66 |     def _get_fallback_template(self, venue_data: dict, channel: str) -> str:
+ 169 | 67 |         """Резервный шаблон если AI не сработал"""
+ 170 | 68 |         name = venue_data.get("name", "ваш объект")
+ 171 | 69 |         location = venue_data.get("address", "")
+ 172 | 70 | 
+ 173 | 71 |         return f"""Привет! 👋
+ 174 | 72 | 
+ 175 | 73 | Мы заметили ваш замечательный {name} в {location}.
+ 176 | 74 | 
+ 177 | 75 | MyTravel.kz — топовая платформа бронирования в Казахстане:
+ 178 | 76 | ✅ 10,000+ туристов ежемесячно
+ 179 | 77 | ✅ Удобная PMS система
+ 180 | 78 | ✅ Рост бронирований
+ 181 | 79 | 
+ 182 | 80 | Хотим добавить вас в каталог. Обсудим? 
+ 183 | 81 | 
+ 184 | 82 | https://mytravel.kz/demo"""
+ 185 | 
+ 186 | 
+ 187 | --------------------------------------------------------------------------------
+ 188 | /backend/app/ai/scoring_agent.py:
+ 189 | --------------------------------------------------------------------------------
+ 190 |   1 | from openai import AsyncOpenAI
+ 191 |   2 | from app.config import get_settings
+ 192 |   3 | from app.models import LeadStatus, CategoryEnum
+ 193 |   4 | from typing import Dict, Tuple
+ 194 |   5 | 
+ 195 |   6 | settings = get_settings()
+ 196 |   7 | client = AsyncOpenAI(api_key=settings.OPEN_API_KEY)
+ 197 |   8 | 
+ 198 |   9 | 
+ 199 |  10 | class ScoringAgent:
+ 200 |  11 |     """AI-агент для оценки и приоритизации объектов"""
+ 201 |  12 | 
+ 202 |  13 |     async def score_venue(self, venue_data: Dict) -> Tuple[float, LeadStatus]:
+ 203 |  14 |         """
+ 204 |  15 |         Оценивает объект по 10-бальной шкале и определяет статус лида
+ 205 |  16 |         """
+ 206 |  17 |         # Базовый скоринг без AI (быстро)
+ 207 |  18 |         base_score = self._calculate_base_score(venue_data)
+ 208 |  19 | 
+ 209 |  20 |         # AI-скоринг для более точной оценки
+ 210 |  21 |         ai_score = await self._ai_enhanced_scoring(venue_data)
+ 211 |  22 | 
+ 212 |  23 |         # Итоговый скор (средневзвешенное)
+ 213 |  24 |         final_score = base_score * 0.4 + ai_score * 0.6
+ 214 |  25 | 
+ 215 |  26 |         # Определяем статус
+ 216 |  27 |         lead_status = self._determine_lead_status(final_score, venue_data)
+ 217 |  28 | 
+ 218 |  29 |         return round(final_score, 2), lead_status
+ 219 |  30 | 
+ 220 |  31 |     def _calculate_base_score(self, venue_data: Dict) -> float:
+ 221 |  32 |         """Базовый скоринг на основе доступных данных"""
+ 222 |  33 |         score = 5.0  # Начальный балл
+ 223 |  34 | 
+ 224 |  35 |         # Полнота контактных данных (+2 балла макс)
+ 225 |  36 |         if venue_data.get("phone"):
+ 226 |  37 |             score += 0.5
+ 227 |  38 |         if venue_data.get("email"):
+ 228 |  39 |             score += 0.5
+ 229 |  40 |         if venue_data.get("website"):
+ 230 |  41 |             score += 0.5
+ 231 |  42 |         if venue_data.get("instagram"):
+ 232 |  43 |             score += 0.5
+ 233 |  44 | 
+ 234 |  45 |         # Наличие фото (+1 балл)
+ 235 |  46 |         photos = venue_data.get("photos", [])
+ 236 |  47 |         score += min(len(photos) * 0.2, 1.0)
+ 237 |  48 | 
+ 238 |  49 |         # Рейтинг и отзывы (+1.5 балла макс)
+ 239 |  50 |         rating = venue_data.get("rating", 0)
+ 240 |  51 |         if rating >= 4.5:
+ 241 |  52 |             score += 1.0
+ 242 |  53 |         elif rating >= 4.0:
+ 243 |  54 |             score += 0.5
+ 244 |  55 | 
+ 245 |  56 |         reviews = venue_data.get("reviews_count", 0)
+ 246 |  57 |         if reviews >= 50:
+ 247 |  58 |             score += 0.5
+ 248 |  59 | 
+ 249 |  60 |         # Ценовой диапазон (+0.5)
+ 250 |  61 |         if venue_data.get("price_min") and venue_data.get("price_max"):
+ 251 |  62 |             score += 0.5
+ 252 |  63 | 
+ 253 |  64 |         return min(score, 10.0)
+ 254 |  65 | 
+ 255 |  66 |     async def _ai_enhanced_scoring(self, venue_data: Dict) -> float:
+ 256 |  67 |         """AI-анализ для более точной оценки потенциала"""
+ 257 |  68 | 
+ 258 |  69 |         prompt = f"""Оцени потенциал этого туристического объекта для платформы MyTravel.kz по шкале от 1 до 10.
+ 259 |  70 | 
+ 260 |  71 | Объект:
+ 261 |  72 | - Название: {venue_data.get('name', 'Не указано')}
+ 262 |  73 | - Категория: {venue_data.get('category', 'Не указано')}
+ 263 |  74 | - Адрес: {venue_data.get('address', 'Не указано')}
+ 264 |  75 | - Контакты: {'Есть' if venue_data.get('phone') else 'Нет'}
+ 265 |  76 | - Сайт: {'Есть' if venue_data.get('website') else 'Нет'}
+ 266 |  77 | - Инстаграм: {'Есть' if venue_data.get('instagram') else 'Нет'}
+ 267 |  78 | - Описание: {venue_data.get('description', 'Не указано')[:200]}
+ 268 |  79 | - Рейтинг: {venue_data.get('rating', 'Нет')}
+ 269 |  80 | - Отзывов: {venue_data.get('reviews_count', 0)}
+ 270 |  81 | 
+ 271 |  82 | Критерии оценки:
+ 272 |  83 | 1. Коммерческий потенциал (готовность платить за продвижение)
+ 273 |  84 | 2. Привлекательность для туристов
+ 274 |  85 | 3. Профессионализм бизнеса
+ 275 |  86 | 4. Уникальность предложения
+ 276 |  87 | 
+ 277 |  88 | Ответь ТОЛЬКО числом от 1 до 10 (например: 8.5)"""
+ 278 |  89 | 
+ 279 |  90 |         try:
+ 280 |  91 |             response = await client.chat.completions.create(
+ 281 |  92 |                 model=settings.OPENAI_MODEL,
+ 282 |  93 |                 messages=[{"role": "user", "content": prompt}],
+ 283 |  94 |                 temperature=0.3,
+ 284 |  95 |                 max_tokens=10,
+ 285 |  96 |             )
+ 286 |  97 | 
+ 287 |  98 |             score_text = response.choices[0].message.content.strip()
+ 288 |  99 |             return float(score_text)
+ 289 | 100 | 
+ 290 | 101 |         except Exception as e:
+ 291 | 102 |             print(f"AI scoring error: {e}")
+ 292 | 103 |             return 5.0  # Fallback
+ 293 | 104 | 
+ 294 | 105 |     def _determine_lead_status(
+ 295 | 106 |         self, score: float, venue_data: Dict
+ 296 | 107 |     ) -> LeadStatus:
+ 297 | 108 |         """Определяет горячий/теплый/холодный лид"""
+ 298 | 109 | 
+ 299 | 110 |         # Горячий лид (8+)
+ 300 | 111 |         if score >= 8.0:
+ 301 | 112 |             return LeadStatus.HOT
+ 302 | 113 | 
+ 303 | 114 |         # Теплый лид (6-7.9)
+ 304 | 115 |         elif score >= 6.0:
+ 305 | 116 |             return LeadStatus.WARM
+ 306 | 117 | 
+ 307 | 118 |         # Холодный лид (<6)
+ 308 | 119 |         else:
+ 309 | 120 |             return LeadStatus.COLD
+ 310 | 121 | 
+ 311 | 122 |     def categorize_venue(self, venue_data: Dict) -> CategoryEnum:
+ 312 | 123 |         """Автоматическая категоризация объекта"""
+ 313 | 124 | 
+ 314 | 125 |         name = venue_data.get("name", "").lower()
+ 315 | 126 |         description = venue_data.get("description", "").lower()
+ 316 | 127 |         text = f"{name} {description}"
+ 317 | 128 | 
+ 318 | 129 |         # Простая эвристика (можно улучшить через AI)
+ 319 | 130 |         if any(
+ 320 | 131 |             word in text
+ 321 | 132 |             for word in ["люкс", "premium", "премиум", "villa", "вилла"]
+ 322 | 133 |         ):
+ 323 | 134 |             return CategoryEnum.LUXURY_GLAMPING
+ 324 | 135 | 
+ 325 | 136 |         elif any(word in text for word in ["юрта", "yurt", "этно"]):
+ 326 | 137 |             return CategoryEnum.ETHNO_TOURISM
+ 327 | 138 | 
+ 328 | 139 |         elif any(
+ 329 | 140 |             word in text for word in ["эко", "eco", "природа", "forest"]
+ 330 | 141 |         ):
+ 331 | 142 |             return CategoryEnum.ECOTOURISM
+ 332 | 143 | 
+ 333 | 144 |         elif any(
+ 334 | 145 |             word in text
+ 335 | 146 |             for word in ["семейный", "детский", "family", "kids"]
+ 336 | 147 |         ):
+ 337 | 148 |             return CategoryEnum.FAMILY_GUESTHOUSE
+ 338 | 149 | 
+ 339 | 150 |         elif any(word in text for word in ["горы", "mountain", "альпы"]):
+ 340 | 151 |             return CategoryEnum.MOUNTAIN_HOUSE
+ 341 | 152 | 
+ 342 | 153 |         # По умолчанию
+ 343 | 154 |         return CategoryEnum.ECOTOURISM
+ 344 | 
+ 345 | 
+ 346 | --------------------------------------------------------------------------------
+ 347 | /backend/app/api/export.py:
+ 348 | --------------------------------------------------------------------------------
+ 349 |  1 | from fastapi import APIRouter, Depends, Response
+ 350 |  2 | from sqlalchemy.orm import Session
+ 351 |  3 | from app.database import get_db
+ 352 |  4 | from app.models import Venue
+ 353 |  5 | import csv
+ 354 |  6 | import json
+ 355 |  7 | from io import StringIO
+ 356 |  8 | 
+ 357 |  9 | router = APIRouter(prefix="/export", tags=["export"])
+ 358 | 10 | 
+ 359 | 11 | 
+ 360 | 12 | @router.get("/csv")
+ 361 | 13 | async def export_csv(db: Session = Depends(get_db)):
+ 362 | 14 |     """Экспорт в CSV"""
+ 363 | 15 |     venues = db.query(Venue).all()
+ 364 | 16 | 
+ 365 | 17 |     output = StringIO()
+ 366 | 18 |     writer = csv.writer(output)
+ 367 | 19 | 
+ 368 | 20 |     # Headers
+ 369 | 21 |     writer.writerow([
+ 370 | 22 |         "ID",
+ 371 | 23 |         "Название",
+ 372 | 24 |         "Категория",
+ 373 | 25 |         "Адрес",
+ 374 | 26 |         "Телефон",
+ 375 | 27 |         "Email",
+ 376 | 28 |         "Сайт",
+ 377 | 29 |         "Instagram",
+ 378 | 30 |         "Скор",
+ 379 | 31 |         "Статус",
+ 380 | 32 |         "AI Описание",
+ 381 | 33 |         "Outreach Сообщение",
+ 382 | 34 |     ])
+ 383 | 35 | 
+ 384 | 36 |     # Data
+ 385 | 37 |     for v in venues:
+ 386 | 38 |         writer.writerow([
+ 387 | 39 |             v.id,
+ 388 | 40 |             v.name,
+ 389 | 41 |             v.category,
+ 390 | 42 |             v.address,
+ 391 | 43 |             v.phone,
+ 392 | 44 |             v.email,
+ 393 | 45 |             v.website,
+ 394 | 46 |             v.instagram,
+ 395 | 47 |             v.score,
+ 396 | 48 |             v.lead_status,
+ 397 | 49 |             v.ai_description,
+ 398 | 50 |             v.ai_outreach_message,
+ 399 | 51 |         ])
+ 400 | 52 | 
+ 401 | 53 |     output.seek(0)
+ 402 | 54 |     return Response(
+ 403 | 55 |         content=output.getvalue(),
+ 404 | 56 |         media_type="text/csv",
+ 405 | 57 |         headers={"Content-Disposition": "attachment; filename=venues.csv"},
+ 406 | 58 |     )
+ 407 | 59 | 
+ 408 | 60 | 
+ 409 | 61 | @router.get("/json")
+ 410 | 62 | async def export_json(db: Session = Depends(get_db)):
+ 411 | 63 |     """Экспорт в JSON"""
+ 412 | 64 |     venues = db.query(Venue).all()
+ 413 | 65 | 
+ 414 | 66 |     data = []
+ 415 | 67 |     for v in venues:
+ 416 | 68 |         data.append({
+ 417 | 69 |             "id": v.id,
+ 418 | 70 |             "name": v.name,
+ 419 | 71 |             "category": v.category,
+ 420 | 72 |             "address": v.address,
+ 421 | 73 |             "phone": v.phone,
+ 422 | 74 |             "email": v.email,
+ 423 | 75 |             "website": v.website,
+ 424 | 76 |             "instagram": v.instagram,
+ 425 | 77 |             "latitude": v.latitude,
+ 426 | 78 |             "longitude": v.longitude,
+ 427 | 79 |             "score": v.score,
+ 428 | 80 |             "lead_status": v.lead_status,
+ 429 | 81 |             "ai_description": v.ai_description,
+ 430 | 82 |             "ai_outreach_message": v.ai_outreach_message,
+ 431 | 83 |             "amenities": v.amenities,
+ 432 | 84 |             "photos": v.photos,
+ 433 | 85 |         })
+ 434 | 86 | 
+ 435 | 87 |     return Response(
+ 436 | 88 |         content=json.dumps(data, ensure_ascii=False, indent=2),
+ 437 | 89 |         media_type="application/json",
+ 438 | 90 |         headers={"Content-Disposition": "attachment; filename=venues.json"},
+ 439 | 91 |     )
+ 440 | 
+ 441 | 
+ 442 | --------------------------------------------------------------------------------
+ 443 | /backend/app/api/parsing.py:
+ 444 | --------------------------------------------------------------------------------
+ 445 |   1 | from fastapi import APIRouter, Depends, BackgroundTasks
+ 446 |   2 | from sqlalchemy.orm import Session
+ 447 |   3 | from app.database import get_db
+ 448 |   4 | from app.models import Venue
+ 449 |   5 | from app.schemas import ParsingRequest
+ 450 |   6 | from app.parsers.gis2_parser import Gis2Parser
+ 451 |   7 | from app.ai.scoring_agent import ScoringAgent
+ 452 |   8 | from app.ai.description_gen import DescriptionGenerator
+ 453 |   9 | from app.ai.outreach_gen import OutreachGenerator
+ 454 |  10 | 
+ 455 |  11 | router = APIRouter(prefix="/parsing", tags=["parsing"])
+ 456 |  12 | 
+ 457 |  13 | gis2_parser = Gis2Parser()
+ 458 |  14 | scoring_agent = ScoringAgent()
+ 459 |  15 | description_gen = DescriptionGenerator()
+ 460 |  16 | outreach_gen = OutreachGenerator()
+ 461 |  17 | 
+ 462 |  18 | 
+ 463 |  19 | async def parse_and_save_task(
+ 464 |  20 |     query: str, region: str, limit: int, db: Session
+ 465 |  21 | ):
+ 466 |  22 |     """Фоновая задача парсинга"""
+ 467 |  23 |     venues_data = await gis2_parser.search_venues(query, region, limit)
+ 468 |  24 | 
+ 469 |  25 |     for venue_data in venues_data:
+ 470 |  26 |         # Проверяем дубликаты
+ 471 |  27 |         existing = (
+ 472 |  28 |             db.query(Venue).filter(Venue.name == venue_data["name"]).first()
+ 473 |  29 |         )
+ 474 |  30 |         if existing:
+ 475 |  31 |             continue
+ 476 |  32 | 
+ 477 |  33 |         # Категоризация
+ 478 |  34 |         category = scoring_agent.categorize_venue(venue_data)
+ 479 |  35 | 
+ 480 |  36 |         # Скоринг
+ 481 |  37 |         score, lead_status = await scoring_agent.score_venue(venue_data)
+ 482 |  38 | 
+ 483 |  39 |         # Создаем объект
+ 484 |  40 |         venue = Venue(
+ 485 |  41 |             name=venue_data["name"],
+ 486 |  42 |             address=venue_data["address"],
+ 487 |  43 |             latitude=venue_data["latitude"],
+ 488 |  44 |             longitude=venue_data["longitude"],
+ 489 |  45 |             phone=venue_data.get("phone"),
+ 490 |  46 |             website=venue_data.get("website"),
+ 491 |  47 |             category=category,
+ 492 |  48 |             score=score,
+ 493 |  49 |             lead_status=lead_status,
+ 494 |  50 |             source=venue_data["source"],
+ 495 |  51 |         )
+ 496 |  52 | 
+ 497 |  53 |         db.add(venue)
+ 498 |  54 | 
+ 499 |  55 |     db.commit()
+ 500 |  56 | 
+ 501 |  57 | 
+ 502 |  58 | @router.post("/start")
+ 503 |  59 | async def start_parsing(
+ 504 |  60 |     request: ParsingRequest,
+ 505 |  61 |     background_tasks: BackgroundTasks,
+ 506 |  62 |     db: Session = Depends(get_db),
+ 507 |  63 | ):
+ 508 |  64 |     """Запустить парсинг в фоне"""
+ 509 |  65 |     background_tasks.add_task(
+ 510 |  66 |         parse_and_save_task, request.query, request.region, request.limit, db
+ 511 |  67 |     )
+ 512 |  68 | 
+ 513 |  69 |     return {
+ 514 |  70 |         "status": "started",
+ 515 |  71 |         "message": f"Парсинг запущен: {request.query} в {request.region}",
+ 516 |  72 |     }
+ 517 |  73 | 
+ 518 |  74 | 
+ 519 |  75 | @router.post("/generate-all-content")
+ 520 |  76 | async def generate_all_content(
+ 521 |  77 |     background_tasks: BackgroundTasks, db: Session = Depends(get_db)
+ 522 |  78 | ):
+ 523 |  79 |     """Генерирует контент для всех объектов без AI-описаний"""
+ 524 |  80 | 
+ 525 |  81 |     async def generate_task():
+ 526 |  82 |         venues = (
+ 527 |  83 |             db.query(Venue).filter(Venue.ai_description.is_(None)).all()
+ 528 |  84 |         )
+ 529 |  85 | 
+ 530 |  86 |         for venue in venues:
+ 531 |  87 |             venue_data = {
+ 532 |  88 |                 "name": venue.name,
+ 533 |  89 |                 "category": venue.category,
+ 534 |  90 |                 "address": venue.address,
+ 535 |  91 |                 "description": venue.description,
+ 536 |  92 |                 "amenities": venue.amenities or [],
+ 537 |  93 |             }
+ 538 |  94 | 
+ 539 |  95 |             venue.ai_description = await description_gen.generate_description(
+ 540 |  96 |                 venue_data
+ 541 |  97 |             )
+ 542 |  98 |             venue.ai_outreach_message = await outreach_gen.generate_outreach(
+ 543 |  99 |                 venue_data
+ 544 | 100 |             )
+ 545 | 101 | 
+ 546 | 102 |         db.commit()
+ 547 | 103 | 
+ 548 | 104 |     background_tasks.add_task(generate_task)
+ 549 | 105 | 
+ 550 | 106 |     return {"status": "started", "message": "Генерация контента запущена"}
+ 551 | 
+ 552 | 
+ 553 | --------------------------------------------------------------------------------
+ 554 | /backend/app/api/venues.py:
+ 555 | --------------------------------------------------------------------------------
+ 556 |   1 | from fastapi import APIRouter, Depends, HTTPException, Query
+ 557 |   2 | from sqlalchemy.orm import Session
+ 558 |   3 | from typing import List, Optional
+ 559 |   4 | from app.database import get_db
+ 560 |   5 | from app.models import Venue, LeadStatus, CategoryEnum
+ 561 |   6 | from app.schemas import VenueResponse, VenueCreate
+ 562 |   7 | from app.ai.scoring_agent import ScoringAgent
+ 563 |   8 | from app.ai.description_gen import DescriptionGenerator
+ 564 |   9 | from app.ai.outreach_gen import OutreachGenerator
+ 565 |  10 | 
+ 566 |  11 | router = APIRouter(prefix="/venues", tags=["venues"])
+ 567 |  12 | 
+ 568 |  13 | scoring_agent = ScoringAgent()
+ 569 |  14 | description_gen = DescriptionGenerator()
+ 570 |  15 | outreach_gen = OutreachGenerator()
+ 571 |  16 | 
+ 572 |  17 | 
+ 573 |  18 | @router.get("/", response_model=List[VenueResponse])
+ 574 |  19 | async def get_venues(
+ 575 |  20 |     skip: int = 0,
+ 576 |  21 |     limit: int = 100,
+ 577 |  22 |     lead_status: Optional[LeadStatus] = None,
+ 578 |  23 |     category: Optional[CategoryEnum] = None,
+ 579 |  24 |     min_score: Optional[float] = None,
+ 580 |  25 |     db: Session = Depends(get_db),
+ 581 |  26 | ):
+ 582 |  27 |     """Получить список объектов с фильтрами"""
+ 583 |  28 |     query = db.query(Venue)
+ 584 |  29 | 
+ 585 |  30 |     if lead_status:
+ 586 |  31 |         query = query.filter(Venue.lead_status == lead_status)
+ 587 |  32 |     if category:
+ 588 |  33 |         query = query.filter(Venue.category == category)
+ 589 |  34 |     if min_score:
+ 590 |  35 |         query = query.filter(Venue.score >= min_score)
+ 591 |  36 | 
+ 592 |  37 |     venues = query.order_by(Venue.score.desc()).offset(skip).limit(limit).all()
+ 593 |  38 |     return venues
+ 594 |  39 | 
+ 595 |  40 | 
+ 596 |  41 | @router.get("/{venue_id}", response_model=VenueResponse)
+ 597 |  42 | async def get_venue(venue_id: int, db: Session = Depends(get_db)):
+ 598 |  43 |     """Получить один объект по ID"""
+ 599 |  44 |     venue = db.query(Venue).filter(Venue.id == venue_id).first()
+ 600 |  45 |     if not venue:
+ 601 |  46 |         raise HTTPException(status_code=404, detail="Venue not found")
+ 602 |  47 |     return venue
+ 603 |  48 | 
+ 604 |  49 | 
+ 605 |  50 | @router.post("/{venue_id}/generate-content")
+ 606 |  51 | async def generate_content(venue_id: int, db: Session = Depends(get_db)):
+ 607 |  52 |     """Генерирует AI-описание и outreach сообщение для объекта"""
+ 608 |  53 |     venue = db.query(Venue).filter(Venue.id == venue_id).first()
+ 609 |  54 |     if not venue:
+ 610 |  55 |         raise HTTPException(status_code=404, detail="Venue not found")
+ 611 |  56 | 
+ 612 |  57 |     venue_data = {
+ 613 |  58 |         "name": venue.name,
+ 614 |  59 |         "category": venue.category,
+ 615 |  60 |         "address": venue.address,
+ 616 |  61 |         "description": venue.description,
+ 617 |  62 |         "amenities": venue.amenities or [],
+ 618 |  63 |     }
+ 619 |  64 | 
+ 620 |  65 |     # Генерируем описание и сообщение
+ 621 |  66 |     ai_description = await description_gen.generate_description(venue_data)
+ 622 |  67 |     ai_outreach = await outreach_gen.generate_outreach(
+ 623 |  68 |         venue_data, channel="whatsapp"
+ 624 |  69 |     )
+ 625 |  70 | 
+ 626 |  71 |     # Обновляем в БД
+ 627 |  72 |     venue.ai_description = ai_description
+ 628 |  73 |     venue.ai_outreach_message = ai_outreach
+ 629 |  74 |     db.commit()
+ 630 |  75 | 
+ 631 |  76 |     return {
+ 632 |  77 |         "ai_description": ai_description,
+ 633 |  78 |         "ai_outreach_message": ai_outreach,
+ 634 |  79 |     }
+ 635 |  80 | 
+ 636 |  81 | 
+ 637 |  82 | @router.post("/{venue_id}/rescore")
+ 638 |  83 | async def rescore_venue(venue_id: int, db: Session = Depends(get_db)):
+ 639 |  84 |     """Пересчитать скор объекта"""
+ 640 |  85 |     venue = db.query(Venue).filter(Venue.id == venue_id).first()
+ 641 |  86 |     if not venue:
+ 642 |  87 |         raise HTTPException(status_code=404, detail="Venue not found")
+ 643 |  88 | 
+ 644 |  89 |     venue_data = {
+ 645 |  90 |         "name": venue.name,
+ 646 |  91 |         "category": venue.category,
+ 647 |  92 |         "phone": venue.phone,
+ 648 |  93 |         "email": venue.email,
+ 649 |  94 |         "website": venue.website,
+ 650 |  95 |         "instagram": venue.instagram,
+ 651 |  96 |         "photos": venue.photos,
+ 652 |  97 |         "rating": venue.rating,
+ 653 |  98 |         "reviews_count": venue.reviews_count,
+ 654 |  99 |         "description": venue.description,
+ 655 | 100 |         "price_min": venue.price_min,
+ 656 | 101 |         "price_max": venue.price_max,
+ 657 | 102 |     }
+ 658 | 103 | 
+ 659 | 104 |     score, lead_status = await scoring_agent.score_venue(venue_data)
+ 660 | 105 | 
+ 661 | 106 |     venue.score = score
+ 662 | 107 |     venue.lead_status = lead_status
+ 663 | 108 |     db.commit()
+ 664 | 109 | 
+ 665 | 110 |     return {"score": score, "lead_status": lead_status}
+ 666 | 111 | 
+ 667 | 112 | 
+ 668 | 113 | @router.get("/stats/summary")
+ 669 | 114 | async def get_stats(db: Session = Depends(get_db)):
+ 670 | 115 |     """Получить статистику по объектам"""
+ 671 | 116 |     total = db.query(Venue).count()
+ 672 | 117 |     hot_leads = (
+ 673 | 118 |         db.query(Venue).filter(Venue.lead_status == LeadStatus.HOT).count()
+ 674 | 119 |     )
+ 675 | 120 |     warm_leads = (
+ 676 | 121 |         db.query(Venue).filter(Venue.lead_status == LeadStatus.WARM).count()
+ 677 | 122 |     )
+ 678 | 123 |     cold_leads = (
+ 679 | 124 |         db.query(Venue).filter(Venue.lead_status == LeadStatus.COLD).count()
+ 680 | 125 |     )
+ 681 | 126 | 
+ 682 | 127 |     avg_score = db.query(Venue).with_entities(
+ 683 | 128 |         db.func.avg(Venue.score)
+ 684 | 129 |     ).scalar() or 0
+ 685 | 130 | 
+ 686 | 131 |     return {
+ 687 | 132 |         "total": total,
+ 688 | 133 |         "hot_leads": hot_leads,
+ 689 | 134 |         "warm_leads": warm_leads,
+ 690 | 135 |         "cold_leads": cold_leads,
+ 691 | 136 |         "avg_score": round(float(avg_score), 2),
+ 692 | 137 |     }
+ 693 | 
+ 694 | 
+ 695 | --------------------------------------------------------------------------------
+ 696 | /backend/app/config.py:
+ 697 | --------------------------------------------------------------------------------
+ 698 |  1 | from pydantic_settings import BaseSettings
+ 699 |  2 | from functools import lru_cache
+ 700 |  3 | 
+ 701 |  4 | 
+ 702 |  5 | class Settings(BaseSettings):
+ 703 |  6 |     
+ 704 |  7 | 
+ 705 |  8 | @lru_cache()
+ 706 |  9 | def get_settings():
+ 707 | 10 |     return Settings()
+ 708 | 
+ 709 | 
+ 710 | --------------------------------------------------------------------------------
+ 711 | /backend/app/database.py:
+ 712 | --------------------------------------------------------------------------------
+ 713 |  1 | from sqlalchemy import create_engine
+ 714 |  2 | from sqlalchemy.orm import sessionmaker
+ 715 |  3 | from app.config import get_settings
+ 716 |  4 | from app.models import Base
+ 717 |  5 | 
+ 718 |  6 | settings = get_settings()
+ 719 |  7 | 
+ 720 |  8 | engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
+ 721 |  9 | SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+ 722 | 10 | 
+ 723 | 11 | 
+ 724 | 12 | def init_db():
+ 725 | 13 |     Base.metadata.create_all(bind=engine)
+ 726 | 14 | 
+ 727 | 15 | 
+ 728 | 16 | def get_db():
+ 729 | 17 |     db = SessionLocal()
+ 730 | 18 |     try:
+ 731 | 19 |         yield db
+ 732 | 20 |     finally:
+ 733 | 21 |         db.close()
+ 734 | 
+ 735 | 
+ 736 | --------------------------------------------------------------------------------
+ 737 | /backend/app/main.py:
+ 738 | --------------------------------------------------------------------------------
+ 739 |  1 | from fastapi import FastAPI
+ 740 |  2 | from fastapi.middleware.cors import CORSMiddleware
+ 741 |  3 | from app.config import get_settings
+ 742 |  4 | from app.database import init_db
+ 743 |  5 | from app.api import venues, parsing, export
+ 744 |  6 | 
+ 745 |  7 | settings = get_settings()
+ 746 |  8 | 
+ 747 |  9 | app = FastAPI(title=settings.API_TITLE, version=settings.API_VERSION)
+ 748 | 10 | 
+ 749 | 11 | # CORS
+ 750 | 12 | app.add_middleware(
+ 751 | 13 |     CORSMiddleware,
+ 752 | 14 |     allow_origins=["http://localhost:5173"],  # Vite dev server
+ 753 | 15 |     allow_credentials=True,
+ 754 | 16 |     allow_methods=["*"],
+ 755 | 17 |     allow_headers=["*"],
+ 756 | 18 | )
+ 757 | 19 | 
+ 758 | 20 | # Initialize DB
+ 759 | 21 | @app.on_event("startup")
+ 760 | 22 | async def startup():
+ 761 | 23 |     init_db()
+ 762 | 24 | 
+ 763 | 25 | 
+ 764 | 26 | # Include routers
+ 765 | 27 | app.include_router(venues.router)
+ 766 | 28 | app.include_router(parsing.router)
+ 767 | 29 | app.include_router(export.router)
+ 768 | 30 | 
+ 769 | 31 | 
+ 770 | 32 | @app.get("/")
+ 771 | 33 | async def root():
+ 772 | 34 |     return {
+ 773 | 35 |         "message": "MyTravel AI Parser API",
+ 774 | 36 |         "version": settings.API_VERSION,
+ 775 | 37 |     }
+ 776 | 38 | 
+ 777 | 39 | 
+ 778 | 40 | @app.get("/health")
+ 779 | 41 | async def health_check():
+ 780 | 42 |     return {"status": "healthy"}
+ 781 | 
+ 782 | 
+ 783 | --------------------------------------------------------------------------------
+ 784 | /backend/app/models.py:
+ 785 | --------------------------------------------------------------------------------
+ 786 |  1 | from sqlalchemy import (
+ 787 |  2 |     Column,
+ 788 |  3 |     Integer,
+ 789 |  4 |     String,
+ 790 |  5 |     Float,
+ 791 |  6 |     JSON,
+ 792 |  7 |     DateTime,
+ 793 |  8 |     Enum,
+ 794 |  9 | )
+ 795 | 10 | from sqlalchemy.ext.declarative import declarative_base
+ 796 | 11 | from datetime import datetime
+ 797 | 12 | import enum
+ 798 | 13 | 
+ 799 | 14 | Base = declarative_base()
+ 800 | 15 | 
+ 801 | 16 | 
+ 802 | 17 | class CategoryEnum(str, enum.Enum):
+ 803 | 18 |     LUXURY_GLAMPING = "luxury_glamping"
+ 804 | 19 |     FAMILY_GUESTHOUSE = "family_guesthouse"
+ 805 | 20 |     ECOTOURISM = "ecotourism"
+ 806 | 21 |     ETHNO_TOURISM = "ethno_tourism"
+ 807 | 22 |     MOUNTAIN_HOUSE = "mountain_house"
+ 808 | 23 | 
+ 809 | 24 | 
+ 810 | 25 | class LeadStatus(str, enum.Enum):
+ 811 | 26 |     HOT = "hot"
+ 812 | 27 |     WARM = "warm"
+ 813 | 28 |     COLD = "cold"
+ 814 | 29 | 
+ 815 | 30 | 
+ 816 | 31 | class Venue(Base):
+ 817 | 32 |     __tablename__ = "venues"
+ 818 | 33 | 
+ 819 | 34 |     id = Column(Integer, primary_key=True, index=True)
+ 820 | 35 | 
+ 821 | 36 |     # Основная информация
+ 822 | 37 |     name = Column(String, nullable=False)
+ 823 | 38 |     category = Column(Enum(CategoryEnum))
+ 824 | 39 |     latitude = Column(Float)
+ 825 | 40 |     longitude = Column(Float)
+ 826 | 41 |     address = Column(String)
+ 827 | 42 | 
+ 828 | 43 |     # Контакты
+ 829 | 44 |     phone = Column(String)
+ 830 | 45 |     email = Column(String)
+ 831 | 46 |     website = Column(String)
+ 832 | 47 |     instagram = Column(String)
+ 833 | 48 |     telegram = Column(String)
+ 834 | 49 | 
+ 835 | 50 |     # Детали
+ 836 | 51 |     description = Column(String)
+ 837 | 52 |     rooms_count = Column(Integer)
+ 838 | 53 |     price_min = Column(Integer)
+ 839 | 54 |     price_max = Column(Integer)
+ 840 | 55 |     amenities = Column(JSON)  # ["wifi", "parking", "kitchen"]
+ 841 | 56 |     photos = Column(JSON)  # ["url1", "url2"]
+ 842 | 57 |     reviews_count = Column(Integer)
+ 843 | 58 |     rating = Column(Float)
+ 844 | 59 | 
+ 845 | 60 |     # AI-генерация
+ 846 | 61 |     ai_description = Column(String)
+ 847 | 62 |     ai_outreach_message = Column(String)
+ 848 | 63 | 
+ 849 | 64 |     # Скоринг
+ 850 | 65 |     score = Column(Float)  # 1-10
+ 851 | 66 |     lead_status = Column(Enum(LeadStatus))
+ 852 | 67 | 
+ 853 | 68 |     # Метаданные
+ 854 | 69 |     source = Column(String)  # "2gis", "google_maps"
+ 855 | 70 |     created_at = Column(DateTime, default=datetime.utcnow)
+ 856 | 71 |     updated_at = Column(DateTime, onupdate=datetime.utcnow)
+ 857 | 
+ 858 | 
+ 859 | --------------------------------------------------------------------------------
+ 860 | /backend/app/parsers/gis2_parser.py:
+ 861 | --------------------------------------------------------------------------------
+ 862 |  1 | import aiohttp
+ 863 |  2 | from typing import List, Dict
+ 864 |  3 | from app.config import get_settings
+ 865 |  4 | 
+ 866 |  5 | settings = get_settings()
+ 867 |  6 | 
+ 868 |  7 | 
+ 869 |  8 | class Gis2Parser:
+ 870 |  9 |     BASE_URL = "https://catalog.api.2gis.com/3.0"
+ 871 | 10 | 
+ 872 | 11 |     def __init__(self):
+ 873 | 12 |         self.api_key = settings.GIS2_API_KEY
+ 874 | 13 | 
+ 875 | 14 |     async def search_venues(
+ 876 | 15 |         self, query: str, region: str = "Алматы", limit: int = 50
+ 877 | 16 |     ) -> List[Dict]:
+ 878 | 17 |         """
+ 879 | 18 |         Поиск объектов через 2GIS Places API
+ 880 | 19 |         """
+ 881 | 20 |         url = f"{self.BASE_URL}/items"
+ 882 | 21 | 
+ 883 | 22 |         params = {
+ 884 | 23 |             "q": query,
+ 885 | 24 |             "region_id": await self._get_region_id(region),
+ 886 | 25 |             "key": self.api_key,
+ 887 | 26 |             "fields": "items.point,items.contact_groups,items.rubrics",
+ 888 | 27 |             "page_size": min(limit, 50),
+ 889 | 28 |         }
+ 890 | 29 | 
+ 891 | 30 |         async with aiohttp.ClientSession() as session:
+ 892 | 31 |             async with session.get(url, params=params) as response:
+ 893 | 32 |                 data = await response.json()
+ 894 | 33 |                 return self._parse_results(data)
+ 895 | 34 | 
+ 896 | 35 |     async def _get_region_id(self, region_name: str) -> int:
+ 897 | 36 |         """Получить ID региона"""
+ 898 | 37 |         # Алматы = 1, Астана = 2, и т.д.
+ 899 | 38 |         region_map = {
+ 900 | 39 |             "Алматы": 1,
+ 901 | 40 |             "Астана": 2,
+ 902 | 41 |             "Караганда": 164,
+ 903 | 42 |             "Шымкент": 165,
+ 904 | 43 |         }
+ 905 | 44 |         return region_map.get(region_name, 1)
+ 906 | 45 | 
+ 907 | 46 |     def _parse_results(self, data: Dict) -> List[Dict]:
+ 908 | 47 |         """Парсинг ответа от 2GIS"""
+ 909 | 48 |         venues = []
+ 910 | 49 | 
+ 911 | 50 |         for item in data.get("result", {}).get("items", []):
+ 912 | 51 |             venue = {
+ 913 | 52 |                 "name": item.get("name"),
+ 914 | 53 |                 "address": item.get("address_name"),
+ 915 | 54 |                 "latitude": item.get("point", {}).get("lat"),
+ 916 | 55 |                 "longitude": item.get("point", {}).get("lon"),
+ 917 | 56 |                 "phone": None,
+ 918 | 57 |                 "website": None,
+ 919 | 58 |                 "source": "2gis",
+ 920 | 59 |             }
+ 921 | 60 | 
+ 922 | 61 |             # Извлечь контакты
+ 923 | 62 |             contacts = item.get("contact_groups", [])
+ 924 | 63 |             if contacts:
+ 925 | 64 |                 for contact in contacts[0].get("contacts", []):
+ 926 | 65 |                     if contact.get("type") == "phone":
+ 927 | 66 |                         venue["phone"] = contact.get("text")
+ 928 | 67 |                     elif contact.get("type") == "website":
+ 929 | 68 |                         venue["website"] = contact.get("url")
+ 930 | 69 | 
+ 931 | 70 |             venues.append(venue)
+ 932 | 71 | 
+ 933 | 72 |         return venues
+ 934 | 
+ 935 | 
+ 936 | --------------------------------------------------------------------------------
+ 937 | /backend/app/schemas.py:
+ 938 | --------------------------------------------------------------------------------
+ 939 |  1 | from pydantic import BaseModel
+ 940 |  2 | from typing import Optional, List
+ 941 |  3 | from datetime import datetime
+ 942 |  4 | from app.models import CategoryEnum, LeadStatus
+ 943 |  5 | 
+ 944 |  6 | 
+ 945 |  7 | class VenueBase(BaseModel):
+ 946 |  8 |     name: str
+ 947 |  9 |     category: Optional[CategoryEnum] = None
+ 948 | 10 |     latitude: Optional[float] = None
+ 949 | 11 |     longitude: Optional[float] = None
+ 950 | 12 |     address: Optional[str] = None
+ 951 | 13 |     phone: Optional[str] = None
+ 952 | 14 |     email: Optional[str] = None
+ 953 | 15 |     website: Optional[str] = None
+ 954 | 16 | 
+ 955 | 17 | 
+ 956 | 18 | class VenueCreate(VenueBase):
+ 957 | 19 |     pass
+ 958 | 20 | 
+ 959 | 21 | 
+ 960 | 22 | class VenueResponse(VenueBase):
+ 961 | 23 |     id: int
+ 962 | 24 |     score: Optional[float] = None
+ 963 | 25 |     lead_status: Optional[LeadStatus] = None
+ 964 | 26 |     ai_description: Optional[str] = None
+ 965 | 27 |     ai_outreach_message: Optional[str] = None
+ 966 | 28 |     created_at: datetime
+ 967 | 29 | 
+ 968 | 30 |     class Config:
+ 969 | 31 |         from_attributes = True
+ 970 | 32 | 
+ 971 | 33 | 
+ 972 | 34 | class ParsingRequest(BaseModel):
+ 973 | 35 |     region: str = "Алматы"
+ 974 | 36 |     query: str = "глэмпинг"
+ 975 | 37 |     limit: int = 50
+ 976 | 
+ 977 | 
+ 978 | --------------------------------------------------------------------------------
+ 979 | /backend/requirements.txt:
+ 980 | --------------------------------------------------------------------------------
+ 981 |  1 | aiohappyeyeballs==2.6.1
+ 982 |  2 | aiohttp==3.13.1
+ 983 |  3 | aiosignal==1.4.0
+ 984 |  4 | alembic==1.17.0
+ 985 |  5 | annotated-types==0.7.0
+ 986 |  6 | anthropic==0.71.0
+ 987 |  7 | anyio==4.11.0
+ 988 |  8 | attrs==25.4.0
+ 989 |  9 | certifi==2025.10.5
+ 990 | 10 | click==8.3.0
+ 991 | 11 | distro==1.9.0
+ 992 | 12 | docstring_parser==0.17.0
+ 993 | 13 | fastapi==0.119.0
+ 994 | 14 | frozenlist==1.8.0
+ 995 | 15 | greenlet==3.2.4
+ 996 | 16 | h11==0.16.0
+ 997 | 17 | httpcore==1.0.9
+ 998 | 18 | httpx==0.28.1
+ 999 | 19 | idna==3.11
+1000 | 20 | jiter==0.11.1
+1001 | 21 | Mako==1.3.10
+1002 | 22 | MarkupSafe==3.0.3
+1003 | 23 | multidict==6.7.0
+1004 | 24 | openai==2.5.0
+1005 | 25 | propcache==0.4.1
+1006 | 26 | psycopg2-binary==2.9.11
+1007 | 27 | pydantic==2.12.3
+1008 | 28 | pydantic-settings==2.11.0
+1009 | 29 | pydantic_core==2.41.4
+1010 | 30 | python-dotenv==1.1.1
+1011 | 31 | sniffio==1.3.1
+1012 | 32 | SQLAlchemy==2.0.44
+1013 | 33 | starlette==0.48.0
+1014 | 34 | tqdm==4.67.1
+1015 | 35 | typing-inspection==0.4.2
+1016 | 36 | typing_extensions==4.15.0
+1017 | 37 | uvicorn==0.37.0
+1018 | 38 | yarl==1.22.0
+1019 | 39 | 
+1020 | 
+1021 | 
+1022 | --------------------------------------------------------------------------------
+1023 | /frontend/.gitignore:
+1024 | --------------------------------------------------------------------------------
+1025 |  1 | # Logs
+1026 |  2 | logs
+1027 |  3 | *.log
+1028 |  4 | npm-debug.log*
+1029 |  5 | yarn-debug.log*
+1030 |  6 | yarn-error.log*
+1031 |  7 | pnpm-debug.log*
+1032 |  8 | lerna-debug.log*
+1033 |  9 | 
+1034 | 10 | node_modules
+1035 | 11 | dist
+1036 | 12 | dist-ssr
+1037 | 13 | *.local
+1038 | 14 | 
+1039 | 15 | # Editor directories and files
+1040 | 16 | .vscode/*
+1041 | 17 | !.vscode/extensions.json
+1042 | 18 | .idea
+1043 | 19 | .DS_Store
+1044 | 20 | *.suo
+1045 | 21 | *.ntvs*
+1046 | 22 | *.njsproj
+1047 | 23 | *.sln
+1048 | 24 | *.sw?
+1049 | 25 | 
+1050 | 
+1051 | 
+1052 | --------------------------------------------------------------------------------
+1053 | /frontend/README.md:
+1054 | --------------------------------------------------------------------------------
+1055 |  1 | # React + Vite
+1056 |  2 | 
+1057 |  3 | This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+1058 |  4 | 
+1059 |  5 | Currently, two official plugins are available:
+1060 |  6 | 
+1061 |  7 | - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
+1062 |  8 | - [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+1063 |  9 | 
+1064 | 10 | ## React Compiler
+1065 | 11 | 
+1066 | 12 | The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1067 | 13 | 
+1068 | 14 | ## Expanding the ESLint configuration
+1069 | 15 | 
+1070 | 16 | If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+1071 | 17 | 
+1072 | 
+1073 | 
+1074 | --------------------------------------------------------------------------------
+1075 | /frontend/eslint.config.js:
+1076 | --------------------------------------------------------------------------------
+1077 |  1 | import js from '@eslint/js'
+1078 |  2 | import globals from 'globals'
+1079 |  3 | import reactHooks from 'eslint-plugin-react-hooks'
+1080 |  4 | import reactRefresh from 'eslint-plugin-react-refresh'
+1081 |  5 | import { defineConfig, globalIgnores } from 'eslint/config'
+1082 |  6 | 
+1083 |  7 | export default defineConfig([
+1084 |  8 |   globalIgnores(['dist']),
+1085 |  9 |   {
+1086 | 10 |     files: ['**/*.{js,jsx}'],
+1087 | 11 |     extends: [
+1088 | 12 |       js.configs.recommended,
+1089 | 13 |       reactHooks.configs['recommended-latest'],
+1090 | 14 |       reactRefresh.configs.vite,
+1091 | 15 |     ],
+1092 | 16 |     languageOptions: {
+1093 | 17 |       ecmaVersion: 2020,
+1094 | 18 |       globals: globals.browser,
+1095 | 19 |       parserOptions: {
+1096 | 20 |         ecmaVersion: 'latest',
+1097 | 21 |         ecmaFeatures: { jsx: true },
+1098 | 22 |         sourceType: 'module',
+1099 | 23 |       },
+1100 | 24 |     },
+1101 | 25 |     rules: {
+1102 | 26 |       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+1103 | 27 |     },
+1104 | 28 |   },
+1105 | 29 | ])
+1106 | 30 | 
+1107 | 
+1108 | 
+1109 | --------------------------------------------------------------------------------
+1110 | /frontend/index.html:
+1111 | --------------------------------------------------------------------------------
+1112 |  1 | <!doctype html>
+1113 |  2 | <html lang="en">
+1114 |  3 |   <head>
+1115 |  4 |     <meta charset="UTF-8" />
+1116 |  5 |     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+1117 |  6 |     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+1118 |  7 |     <title>frontend</title>
+1119 |  8 |   </head>
+1120 |  9 |   <body>
+1121 | 10 |     <div id="root"></div>
+1122 | 11 |     <script type="module" src="/src/main.jsx"></script>
+1123 | 12 |   </body>
+1124 | 13 | </html>
+1125 | 14 | 
+1126 | 
+1127 | 
+1128 | --------------------------------------------------------------------------------
+1129 | /frontend/package.json:
+1130 | --------------------------------------------------------------------------------
+1131 |  1 | {
+1132 |  2 |   "name": "frontend",
+1133 |  3 |   "private": true,
+1134 |  4 |   "version": "0.0.0",
+1135 |  5 |   "type": "module",
+1136 |  6 |   "scripts": {
+1137 |  7 |     "dev": "vite",
+1138 |  8 |     "build": "vite build",
+1139 |  9 |     "lint": "eslint .",
+1140 | 10 |     "preview": "vite preview"
+1141 | 11 |   },
+1142 | 12 |   "dependencies": {
+1143 | 13 |     "axios": "^1.12.2",
+1144 | 14 |     "lucide-react": "^0.546.0",
+1145 | 15 |     "react": "^19.1.1",
+1146 | 16 |     "react-dom": "^19.1.1",
+1147 | 17 |     "react-router-dom": "^7.9.4"
+1148 | 18 |   },
+1149 | 19 |   "devDependencies": {
+1150 | 20 |     "@eslint/js": "^9.36.0",
+1151 | 21 |     "@types/react": "^19.1.16",
+1152 | 22 |     "@types/react-dom": "^19.1.9",
+1153 | 23 |     "@vitejs/plugin-react": "^5.0.4",
+1154 | 24 |     "eslint": "^9.36.0",
+1155 | 25 |     "eslint-plugin-react-hooks": "^5.2.0",
+1156 | 26 |     "eslint-plugin-react-refresh": "^0.4.22",
+1157 | 27 |     "globals": "^16.4.0",
+1158 | 28 |     "vite": "^7.1.7"
+1159 | 29 |   }
+1160 | 30 | }
+1161 | 31 | 
+1162 | 
+1163 | 
+1164 | --------------------------------------------------------------------------------
+1165 | /frontend/public/vite.svg:
+1166 | --------------------------------------------------------------------------------
+1167 | 1 | <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="31.88" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 257"><defs><linearGradient id="IconifyId1813088fe1fbc01fb466" x1="-.828%" x2="57.636%" y1="7.652%" y2="78.411%"><stop offset="0%" stop-color="#41D1FF"></stop><stop offset="100%" stop-color="#BD34FE"></stop></linearGradient><linearGradient id="IconifyId1813088fe1fbc01fb467" x1="43.376%" x2="50.316%" y1="2.242%" y2="89.03%"><stop offset="0%" stop-color="#FFEA83"></stop><stop offset="8.333%" stop-color="#FFDD35"></stop><stop offset="100%" stop-color="#FFA800"></stop></linearGradient></defs><path fill="url(#IconifyId1813088fe1fbc01fb466)" d="M255.153 37.938L134.897 252.976c-2.483 4.44-8.862 4.466-11.382.048L.875 37.958c-2.746-4.814 1.371-10.646 6.827-9.67l120.385 21.517a6.537 6.537 0 0 0 2.322-.004l117.867-21.483c5.438-.991 9.574 4.796 6.877 9.62Z"></path><path fill="url(#IconifyId1813088fe1fbc01fb467)" d="M185.432.063L96.44 17.501a3.268 3.268 0 0 0-2.634 3.014l-5.474 92.456a3.268 3.268 0 0 0 3.997 3.378l24.777-5.718c2.318-.535 4.413 1.507 3.936 3.838l-7.361 36.047c-.495 2.426 1.782 4.5 4.151 3.78l15.304-4.649c2.372-.72 4.652 1.36 4.15 3.788l-11.698 56.621c-.732 3.542 3.979 5.473 5.943 2.437l1.313-2.028l72.516-144.72c1.215-2.423-.88-5.186-3.54-4.672l-25.505 4.922c-2.396.462-4.435-1.77-3.759-4.114l16.646-57.705c.677-2.35-1.37-4.583-3.769-4.113Z"></path></svg>
+1168 | 
+1169 | 
+1170 | --------------------------------------------------------------------------------
+1171 | /frontend/src/App.css:
+1172 | --------------------------------------------------------------------------------
+1173 |  1 | #root {
+1174 |  2 |   max-width: 1280px;
+1175 |  3 |   margin: 0 auto;
+1176 |  4 |   padding: 2rem;
+1177 |  5 |   text-align: center;
+1178 |  6 | }
+1179 |  7 | 
+1180 |  8 | .logo {
+1181 |  9 |   height: 6em;
+1182 | 10 |   padding: 1.5em;
+1183 | 11 |   will-change: filter;
+1184 | 12 |   transition: filter 300ms;
+1185 | 13 | }
+1186 | 14 | .logo:hover {
+1187 | 15 |   filter: drop-shadow(0 0 2em #646cffaa);
+1188 | 16 | }
+1189 | 17 | .logo.react:hover {
+1190 | 18 |   filter: drop-shadow(0 0 2em #61dafbaa);
+1191 | 19 | }
+1192 | 20 | 
+1193 | 21 | @keyframes logo-spin {
+1194 | 22 |   from {
+1195 | 23 |     transform: rotate(0deg);
+1196 | 24 |   }
+1197 | 25 |   to {
+1198 | 26 |     transform: rotate(360deg);
+1199 | 27 |   }
+1200 | 28 | }
+1201 | 29 | 
+1202 | 30 | @media (prefers-reduced-motion: no-preference) {
+1203 | 31 |   a:nth-of-type(2) .logo {
+1204 | 32 |     animation: logo-spin infinite 20s linear;
+1205 | 33 |   }
+1206 | 34 | }
+1207 | 35 | 
+1208 | 36 | .card {
+1209 | 37 |   padding: 2em;
+1210 | 38 | }
+1211 | 39 | 
+1212 | 40 | .read-the-docs {
+1213 | 41 |   color: #888;
+1214 | 42 | }
+1215 | 43 | 
+1216 | 
+1217 | 
+1218 | --------------------------------------------------------------------------------
+1219 | /frontend/src/App.jsx:
+1220 | --------------------------------------------------------------------------------
+1221 |  1 | import { useState } from 'react'
+1222 |  2 | import reactLogo from './assets/react.svg'
+1223 |  3 | import viteLogo from '/vite.svg'
+1224 |  4 | import './App.css'
+1225 |  5 | 
+1226 |  6 | function App() {
+1227 |  7 |   const [count, setCount] = useState(0)
+1228 |  8 | 
+1229 |  9 |   return (
+1230 | 10 |     <>
+1231 | 11 |       <div>
+1232 | 12 |         <a href="https://vite.dev" target="_blank">
+1233 | 13 |           <img src={viteLogo} className="logo" alt="Vite logo" />
+1234 | 14 |         </a>
+1235 | 15 |         <a href="https://react.dev" target="_blank">
+1236 | 16 |           <img src={reactLogo} className="logo react" alt="React logo" />
+1237 | 17 |         </a>
+1238 | 18 |       </div>
+1239 | 19 |       <h1>Vite + React</h1>
+1240 | 20 |       <div className="card">
+1241 | 21 |         <button onClick={() => setCount((count) => count + 1)}>
+1242 | 22 |           count is {count}
+1243 | 23 |         </button>
+1244 | 24 |         <p>
+1245 | 25 |           Edit <code>src/App.jsx</code> and save to test HMR
+1246 | 26 |         </p>
+1247 | 27 |       </div>
+1248 | 28 |       <p className="read-the-docs">
+1249 | 29 |         Click on the Vite and React logos to learn more
+1250 | 30 |       </p>
+1251 | 31 |     </>
+1252 | 32 |   )
+1253 | 33 | }
+1254 | 34 | 
+1255 | 35 | export default App
+1256 | 36 | 
+1257 | 
+1258 | 
+1259 | --------------------------------------------------------------------------------
+1260 | /frontend/src/assets/react.svg:
+1261 | --------------------------------------------------------------------------------
+1262 | 1 | <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="35.93" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 228"><path fill="#00D8FF" d="M210.483 73.824a171.49 171.49 0 0 0-8.24-2.597c.465-1.9.893-3.777 1.273-5.621c6.238-30.281 2.16-54.676-11.769-62.708c-13.355-7.7-35.196.329-57.254 19.526a171.23 171.23 0 0 0-6.375 5.848a155.866 155.866 0 0 0-4.241-3.917C100.759 3.829 77.587-4.822 63.673 3.233C50.33 10.957 46.379 33.89 51.995 62.588a170.974 170.974 0 0 0 1.892 8.48c-3.28.932-6.445 1.924-9.474 2.98C17.309 83.498 0 98.307 0 113.668c0 15.865 18.582 31.778 46.812 41.427a145.52 145.52 0 0 0 6.921 2.165a167.467 167.467 0 0 0-2.01 9.138c-5.354 28.2-1.173 50.591 12.134 58.266c13.744 7.926 36.812-.22 59.273-19.855a145.567 145.567 0 0 0 5.342-4.923a168.064 168.064 0 0 0 6.92 6.314c21.758 18.722 43.246 26.282 56.54 18.586c13.731-7.949 18.194-32.003 12.4-61.268a145.016 145.016 0 0 0-1.535-6.842c1.62-.48 3.21-.974 4.76-1.488c29.348-9.723 48.443-25.443 48.443-41.52c0-15.417-17.868-30.326-45.517-39.844Zm-6.365 70.984c-1.4.463-2.836.91-4.3 1.345c-3.24-10.257-7.612-21.163-12.963-32.432c5.106-11 9.31-21.767 12.459-31.957c2.619.758 5.16 1.557 7.61 2.4c23.69 8.156 38.14 20.213 38.14 29.504c0 9.896-15.606 22.743-40.946 31.14Zm-10.514 20.834c2.562 12.94 2.927 24.64 1.23 33.787c-1.524 8.219-4.59 13.698-8.382 15.893c-8.067 4.67-25.32-1.4-43.927-17.412a156.726 156.726 0 0 1-6.437-5.87c7.214-7.889 14.423-17.06 21.459-27.246c12.376-1.098 24.068-2.894 34.671-5.345a134.17 134.17 0 0 1 1.386 6.193ZM87.276 214.515c-7.882 2.783-14.16 2.863-17.955.675c-8.075-4.657-11.432-22.636-6.853-46.752a156.923 156.923 0 0 1 1.869-8.499c10.486 2.32 22.093 3.988 34.498 4.994c7.084 9.967 14.501 19.128 21.976 27.15a134.668 134.668 0 0 1-4.877 4.492c-9.933 8.682-19.886 14.842-28.658 17.94ZM50.35 144.747c-12.483-4.267-22.792-9.812-29.858-15.863c-6.35-5.437-9.555-10.836-9.555-15.216c0-9.322 13.897-21.212 37.076-29.293c2.813-.98 5.757-1.905 8.812-2.773c3.204 10.42 7.406 21.315 12.477 32.332c-5.137 11.18-9.399 22.249-12.634 32.792a134.718 134.718 0 0 1-6.318-1.979Zm12.378-84.26c-4.811-24.587-1.616-43.134 6.425-47.789c8.564-4.958 27.502 2.111 47.463 19.835a144.318 144.318 0 0 1 3.841 3.545c-7.438 7.987-14.787 17.08-21.808 26.988c-12.04 1.116-23.565 2.908-34.161 5.309a160.342 160.342 0 0 1-1.76-7.887Zm110.427 27.268a347.8 347.8 0 0 0-7.785-12.803c8.168 1.033 15.994 2.404 23.343 4.08c-2.206 7.072-4.956 14.465-8.193 22.045a381.151 381.151 0 0 0-7.365-13.322Zm-45.032-43.861c5.044 5.465 10.096 11.566 15.065 18.186a322.04 322.04 0 0 0-30.257-.006c4.974-6.559 10.069-12.652 15.192-18.18ZM82.802 87.83a323.167 323.167 0 0 0-7.227 13.238c-3.184-7.553-5.909-14.98-8.134-22.152c7.304-1.634 15.093-2.97 23.209-3.984a321.524 321.524 0 0 0-7.848 12.897Zm8.081 65.352c-8.385-.936-16.291-2.203-23.593-3.793c2.26-7.3 5.045-14.885 8.298-22.6a321.187 321.187 0 0 0 7.257 13.246c2.594 4.48 5.28 8.868 8.038 13.147Zm37.542 31.03c-5.184-5.592-10.354-11.779-15.403-18.433c4.902.192 9.899.29 14.978.29c5.218 0 10.376-.117 15.453-.343c-4.985 6.774-10.018 12.97-15.028 18.486Zm52.198-57.817c3.422 7.8 6.306 15.345 8.596 22.52c-7.422 1.694-15.436 3.058-23.88 4.071a382.417 382.417 0 0 0 7.859-13.026a347.403 347.403 0 0 0 7.425-13.565Zm-16.898 8.101a358.557 358.557 0 0 1-12.281 19.815a329.4 329.4 0 0 1-23.444.823c-7.967 0-15.716-.248-23.178-.732a310.202 310.202 0 0 1-12.513-19.846h.001a307.41 307.41 0 0 1-10.923-20.627a310.278 310.278 0 0 1 10.89-20.637l-.001.001a307.318 307.318 0 0 1 12.413-19.761c7.613-.576 15.42-.876 23.31-.876H128c7.926 0 15.743.303 23.354.883a329.357 329.357 0 0 1 12.335 19.695a358.489 358.489 0 0 1 11.036 20.54a329.472 329.472 0 0 1-11 20.722Zm22.56-122.124c8.572 4.944 11.906 24.881 6.52 51.026c-.344 1.668-.73 3.367-1.15 5.09c-10.622-2.452-22.155-4.275-34.23-5.408c-7.034-10.017-14.323-19.124-21.64-27.008a160.789 160.789 0 0 1 5.888-5.4c18.9-16.447 36.564-22.941 44.612-18.3ZM128 90.808c12.625 0 22.86 10.235 22.86 22.86s-10.235 22.86-22.86 22.86s-22.86-10.235-22.86-22.86s10.235-22.86 22.86-22.86Z"></path></svg>
+1263 | 
+1264 | 
+1265 | --------------------------------------------------------------------------------
+1266 | /frontend/src/index.css:
+1267 | --------------------------------------------------------------------------------
+1268 |  1 | :root {
+1269 |  2 |   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+1270 |  3 |   line-height: 1.5;
+1271 |  4 |   font-weight: 400;
+1272 |  5 | 
+1273 |  6 |   color-scheme: light dark;
+1274 |  7 |   color: rgba(255, 255, 255, 0.87);
+1275 |  8 |   background-color: #242424;
+1276 |  9 | 
+1277 | 10 |   font-synthesis: none;
+1278 | 11 |   text-rendering: optimizeLegibility;
+1279 | 12 |   -webkit-font-smoothing: antialiased;
+1280 | 13 |   -moz-osx-font-smoothing: grayscale;
+1281 | 14 | }
+1282 | 15 | 
+1283 | 16 | a {
+1284 | 17 |   font-weight: 500;
+1285 | 18 |   color: #646cff;
+1286 | 19 |   text-decoration: inherit;
+1287 | 20 | }
+1288 | 21 | a:hover {
+1289 | 22 |   color: #535bf2;
+1290 | 23 | }
+1291 | 24 | 
+1292 | 25 | body {
+1293 | 26 |   margin: 0;
+1294 | 27 |   display: flex;
+1295 | 28 |   place-items: center;
+1296 | 29 |   min-width: 320px;
+1297 | 30 |   min-height: 100vh;
+1298 | 31 | }
+1299 | 32 | 
+1300 | 33 | h1 {
+1301 | 34 |   font-size: 3.2em;
+1302 | 35 |   line-height: 1.1;
+1303 | 36 | }
+1304 | 37 | 
+1305 | 38 | button {
+1306 | 39 |   border-radius: 8px;
+1307 | 40 |   border: 1px solid transparent;
+1308 | 41 |   padding: 0.6em 1.2em;
+1309 | 42 |   font-size: 1em;
+1310 | 43 |   font-weight: 500;
+1311 | 44 |   font-family: inherit;
+1312 | 45 |   background-color: #1a1a1a;
+1313 | 46 |   cursor: pointer;
+1314 | 47 |   transition: border-color 0.25s;
+1315 | 48 | }
+1316 | 49 | button:hover {
+1317 | 50 |   border-color: #646cff;
+1318 | 51 | }
+1319 | 52 | button:focus,
+1320 | 53 | button:focus-visible {
+1321 | 54 |   outline: 4px auto -webkit-focus-ring-color;
+1322 | 55 | }
+1323 | 56 | 
+1324 | 57 | @media (prefers-color-scheme: light) {
+1325 | 58 |   :root {
+1326 | 59 |     color: #213547;
+1327 | 60 |     background-color: #ffffff;
+1328 | 61 |   }
+1329 | 62 |   a:hover {
+1330 | 63 |     color: #747bff;
+1331 | 64 |   }
+1332 | 65 |   button {
+1333 | 66 |     background-color: #f9f9f9;
+1334 | 67 |   }
+1335 | 68 | }
+1336 | 69 | 
+1337 | 
+1338 | 
+1339 | --------------------------------------------------------------------------------
+1340 | /frontend/src/main.jsx:
+1341 | --------------------------------------------------------------------------------
+1342 |  1 | import { StrictMode } from 'react'
+1343 |  2 | import { createRoot } from 'react-dom/client'
+1344 |  3 | import './index.css'
+1345 |  4 | import App from './App.jsx'
+1346 |  5 | 
+1347 |  6 | createRoot(document.getElementById('root')).render(
+1348 |  7 |   <StrictMode>
+1349 |  8 |     <App />
+1350 |  9 |   </StrictMode>,
+1351 | 10 | )
+1352 | 11 | 
+1353 | 
+1354 | 
+1355 | --------------------------------------------------------------------------------
+1356 | /frontend/vite.config.js:
+1357 | --------------------------------------------------------------------------------
+1358 | 1 | import { defineConfig } from 'vite'
+1359 | 2 | import react from '@vitejs/plugin-react'
+1360 | 3 | 
+1361 | 4 | // https://vite.dev/config/
+1362 | 5 | export default defineConfig({
+1363 | 6 |   plugins: [react()],
+1364 | 7 | })
+1365 | 8 | 
+1366 | 
+1367 | 
+1368 | --------------------------------------------------------------------------------
+1369 | 
+1370 | 
+
+
+--------------------------------------------------------------------------------
+/docker-compose.yml:
+--------------------------------------------------------------------------------
+ 1 | services:
+ 2 |   postgres:
+ 3 |     image: postgres:15-alpine
+ 4 |     environment:
+ 5 |       POSTGRES_USER: postgres
+ 6 |       POSTGRES_PASSWORD: password
+ 7 |       POSTGRES_DB: mytravel
+ 8 |     ports:
+ 9 |       - "5432:5432"
+10 |     volumes:
+11 |       - postgres_data:/var/lib/postgresql/data
+12 | 
+13 |   backend:
+14 |     build: ./backend
+15 |     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+16 |     volumes:
+17 |       - ./backend:/app
+18 |     ports:
+19 |       - "8000:8000"
+20 |     environment:
+21 |       - DATABASE_URL=postgresql://postgres:password@postgres:5432/mytravel
+22 |     env_file:
+23 |       - ./backend/.env
+24 |     depends_on:
+25 |       - postgres
+26 | 
+27 |   frontend:
+28 |     build: ./frontend
+29 |     command: npm run dev -- --host
+30 |     volumes:
+31 |       - ./frontend:/app
+32 |       - /app/node_modules
+33 |     ports:
+34 |       - "5173:5173"
+35 |     depends_on:
+36 |       - backend
+37 | 
+38 | volumes:
+39 |   postgres_data:
+
+
+--------------------------------------------------------------------------------
 /frontend/.gitignore:
 --------------------------------------------------------------------------------
  1 | # Logs
@@ -1047,6 +2659,21 @@
 23 | *.sln
 24 | *.sw?
 25 | 
+
+
+--------------------------------------------------------------------------------
+/frontend/Dockerfile:
+--------------------------------------------------------------------------------
+ 1 | FROM node:20-alpine
+ 2 | 
+ 3 | WORKDIR /app
+ 4 | 
+ 5 | COPY package.json .
+ 6 | RUN npm install
+ 7 | 
+ 8 | COPY . .
+ 9 | 
+10 | CMD ["npm", "run", "dev"]
 
 
 --------------------------------------------------------------------------------
@@ -1366,4 +2993,5 @@
 
 
 --------------------------------------------------------------------------------
+
 
