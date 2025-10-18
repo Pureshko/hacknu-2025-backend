@@ -42,6 +42,8 @@ backend/__pycache__/
 backend/staticfiles/
 backend/media/
 backend/config.py
+code.txt
+
 
 # docker
 *.pid
