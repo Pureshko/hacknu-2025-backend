@@ -15,6 +15,9 @@ services:
       timeout: 5s
       retries: 5
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> dc00906732f696655bb446922d1dfead4270d2f1
 volumes:
   postgres_data:
