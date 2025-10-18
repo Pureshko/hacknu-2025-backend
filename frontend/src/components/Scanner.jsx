@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Search, AlertCircle, CheckCircle } from 'lucide-react';
-import { accommodationService } from '../services/api';
-const [dataSource, setDataSource] = useState('2gis');
+import api from '../services/api';
 
 const Scanner = () => {
   const [selectedRegion, setSelectedRegion] = useState('Almaty');
+  const [dataSource, setDataSource] = useState('2gis');
   const [scanning, setScanning] = useState(false);
   const [status, setStatus] = useState(null);
 
@@ -21,22 +21,23 @@ const Scanner = () => {
     setStatus(null);
 
     try {
-      const endpoint = dataSource === 'google' 
-        ? '/api/scan/google-places' 
-        : '/api/scan/start';
-      
-      await api.post(endpoint, null, { 
-        params: { region: selectedRegion } 
+      const endpoint =
+        dataSource === 'google'
+          ? '/api/scan/google-places'
+          : '/api/scan/start';
+
+      await api.post(endpoint, null, {
+        params: { region: selectedRegion },
       });
-      
+
       setStatus({
         type: 'success',
-        message: `Scan started for ${selectedRegion} using ${dataSource}.`
+        message: `Scan started for ${selectedRegion} using ${dataSource}.`,
       });
     } catch (error) {
       setStatus({
         type: 'error',
-        message: 'Failed to start scan.'
+        message: 'Failed to start scan.',
       });
     } finally {
       setScanning(false);
@@ -46,31 +47,30 @@ const Scanner = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">
-          Data Scanner
-        </h1>
+        <h1 className="text-3xl font-bold text-gray-900">Data Scanner</h1>
         <p className="text-gray-600 mt-1">
           Scan regions for new accommodation data
         </p>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Data Source
-        </label>
-        <select
-          value={dataSource}
-          onChange={(e) => setDataSource(e.target.value)}
-          className="w-full px-4 py-3 border border-gray-300 
-                  rounded-lg focus:ring-2 focus:ring-primary-500"
-        >
-          <option value="2gis">2GIS</option>
-          <option value="google">Google Places</option>
-        </select>
-      </div>
-
       <div className="card max-w-2xl">
         <div className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Data Source
+            </label>
+            <select
+              value={dataSource}
+              onChange={(e) => setDataSource(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 
+                       rounded-lg focus:ring-2 focus:ring-primary-500"
+              disabled={scanning}
+            >
+              <option value="2gis">2GIS</option>
+              <option value="google">Google Places</option>
+            </select>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Select Region
@@ -83,7 +83,7 @@ const Scanner = () => {
                        focus:border-transparent"
               disabled={scanning}
             >
-              {regions.map(region => (
+              {regions.map((region) => (
                 <option key={region} value={region}>
                   {region}
                 </option>
@@ -100,8 +100,10 @@ const Scanner = () => {
           >
             {scanning ? (
               <>
-                <div className="animate-spin rounded-full h-5 w-5 
-                             border-b-2 border-white mr-2"></div>
+                <div
+                  className="animate-spin rounded-full h-5 w-5 
+                             border-b-2 border-white mr-2"
+                ></div>
                 Scanning...
               </>
             ) : (
@@ -113,11 +115,13 @@ const Scanner = () => {
           </button>
 
           {status && (
-            <div className={`p-4 rounded-lg flex items-start ${
-              status.type === 'success' 
-                ? 'bg-green-50 text-green-800' 
-                : 'bg-red-50 text-red-800'
-            }`}>
+            <div
+              className={`p-4 rounded-lg flex items-start ${
+                status.type === 'success'
+                  ? 'bg-green-50 text-green-800'
+                  : 'bg-red-50 text-red-800'
+              }`}
+            >
               {status.type === 'success' ? (
                 <CheckCircle className="w-5 h-5 mr-3 flex-shrink-0 mt-0.5" />
               ) : (
@@ -134,7 +138,8 @@ const Scanner = () => {
             <ul className="space-y-2 text-sm text-gray-600">
               <li className="flex items-start">
                 <span className="text-primary-600 mr-2">•</span>
-                Search 2GIS for accommodations in the selected region
+                Search {dataSource === 'google' ? 'Google Places' : '2GIS'} for
+                accommodations
               </li>
               <li className="flex items-start">
                 <span className="text-primary-600 mr-2">•</span>

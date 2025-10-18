@@ -34,14 +34,15 @@ class GooglePlacesAgent(BaseAgent):
         
         # Define search queries for different categories
         search_queries = [
-            "glamping in Almaty",
-            "yurt camp Almaty",
+            "глэмпинг в алматы",
+            "юрты алматы",
             "eco lodge Almaty",
-            "guest house nature Almaty",
-            "cottage rental Almaty",
+            "природа Almaty",
+            "коттэджи алматы",
             "vacation rental Almaty mountains",
             "eco tourism Almaty",
-            "mountain resort Almaty"
+            "mountain resort Almaty",
+            "горы алматы"
         ]
         
         all_results = []

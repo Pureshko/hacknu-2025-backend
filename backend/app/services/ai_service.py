@@ -1,12 +1,13 @@
 from typing import Dict, Any
-import openai
+from openai import AsyncOpenAI
 from ..core.config import settings
 
 
 class AIService:
     def __init__(self):
+        self.client = None
         if settings.OPENAI_API_KEY:
-            openai.api_key = settings.OPENAI_API_KEY
+            self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
     
     async def generate_description(
         self, 
@@ -14,18 +15,23 @@ class AIService:
     ) -> str:
         """Generate SEO-optimized description for accommodation"""
         
+        if not self.client:
+            return self._fallback_description(accommodation)
+        
         prompt = self._build_description_prompt(accommodation)
         
         try:
-            response = await openai.ChatCompletion.acreate(
-                model="gpt-4",
+            response = await self.client.chat.completions.create(
+                model="gpt-4o-mini",
                 messages=[
                     {
                         "role": "system",
-                        "content": "Ты эксперт по туристическому маркетингу "
-                                  "в Казахстане. Создай привлекательное, "
-                                  "SEO-оптимизированное описание для "
-                                  "туристического объекта размещения."
+                        "content": (
+                            "Ты эксперт по туристическому маркетингу "
+                            "в Казахстане. Создай привлекательное, "
+                            "SEO-оптимизированное описание для "
+                            "туристического объекта размещения."
+                        )
                     },
                     {
                         "role": "user",
@@ -61,13 +67,16 @@ class AIService:
             "объект размещения"
         )
         
+        amenities = accommodation.get('amenities', [])
+        amenities_str = ', '.join(amenities) if amenities else 'Не указано'
+        
         prompt = f"""
 Создай описание для следующего объекта:
 
 Название: {accommodation.get('name', 'Без названия')}
 Тип: {type_ru}
 Локация: {accommodation.get('address', '')} ({accommodation.get('region', '')})
-Удобства: {', '.join(accommodation.get('amenities', []))}
+Удобства: {amenities_str}
 Ценовой диапазон: {accommodation.get('price_min', '')} - {accommodation.get('price_max', '')} тенге
 
 Требования:
@@ -86,9 +95,11 @@ class AIService:
     ) -> str:
         """Fallback description when AI is not available"""
         
-        return f"{accommodation.get('name', 'Объект размещения')} " \
-               f"расположен в {accommodation.get('region', 'Казахстане')}. " \
-               f"Прекрасное место для отдыха и релаксации."
+        return (
+            f"{accommodation.get('name', 'Объект размещения')} "
+            f"расположен в {accommodation.get('region', 'Казахстане')}. "
+            f"Прекрасное место для отдыха и релаксации."
+        )
     
     def calculate_priority_score(
         self, 
@@ -97,20 +108,24 @@ class AIService:
         """Calculate priority scores for accommodation"""
         
         scores = {
-            "online_activity": self._score_online_activity(accommodation),
-            "data_completeness": self._score_data_completeness(accommodation),
-            "popularity": self._score_popularity(accommodation),
-            "commercial_potential": self._score_commercial_potential(
+            "online_activity_score": self._score_online_activity(
+                accommodation
+            ),
+            "data_completeness_score": self._score_data_completeness(
+                accommodation
+            ),
+            "popularity_score": self._score_popularity(accommodation),
+            "commercial_potential_score": self._score_commercial_potential(
                 accommodation
             ),
         }
         
         # Overall priority score (1-10)
         weights = {
-            "online_activity": 0.25,
-            "data_completeness": 0.20,
-            "popularity": 0.30,
-            "commercial_potential": 0.25
+            "online_activity_score": 0.25,
+            "data_completeness_score": 0.20,
+            "popularity_score": 0.30,
+            "commercial_potential_score": 0.25
         }
         
         priority_score = sum(
