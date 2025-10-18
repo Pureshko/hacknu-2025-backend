@@ -3,6 +3,7 @@ import json
 from urllib.parse import urlencode
 from config import API_KEY, DEFAULT_REGION_ID
 from get_coordinates import get_lat_and_lon
+from get_details import enrich_details
 
 BASE_URL = "https://catalog.api.2gis.com/3.0/items"
 
@@ -22,6 +23,7 @@ def search_places(query: str, region_id: str, page_size: int = 10, page: int = 1
     results = []
     if response.status_code == 200 and "result" in data:
         for item in data["result"]["items"]:
+            #print(json.dumps(item, ensure_ascii=False, indent=2))
             address = item.get("address_name")
             lat = item.get("point", {}).get("lat")
             lon = item.get("point", {}).get("lon")
@@ -35,17 +37,18 @@ def search_places(query: str, region_id: str, page_size: int = 10, page: int = 1
                 "address": address,
                 "lat": lat,
                 "lon": lon,
-                "phone": None,
-                "website": None
             }
 
+            details = enrich_details(item["id"])
+            info.update(details)
+
             # Parsing contacts
-            for group in item.get("contact_groups", []):
-                for contact in group.get("contacts", []):
-                    if contact.get("type") == "phone":
-                        info["phone"] = contact.get("value")
-                    elif contact.get("type") == "website":
-                        info["website"] = contact.get("value")
+            # for group in item.get("contact_groups", []):
+            #     for contact in group.get("contacts", []):
+            #         if contact.get("type") == "phone":
+            #             info["phone"] = contact.get("value")
+            #         elif contact.get("type") == "website":
+            #             info["website"] = contact.get("value")
             
             results.append(info)
     
@@ -56,5 +59,5 @@ def search_places(query: str, region_id: str, page_size: int = 10, page: int = 1
 
 if __name__ == '__main__':
     query = "глэмпинг"
-    places = search_places(query=query, region_id=DEFAULT_REGION_ID, page_size=10)
+    places = search_places(query=query, region_id=DEFAULT_REGION_ID, page_size=1)
     print(json.dumps(places, ensure_ascii=False, indent=2))
