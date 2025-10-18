@@ -19,6 +19,7 @@ async def scrape_google_places():
     """Scrape accommodation data from Google Places API"""
     
     print("Starting Google Places scraping...")
+    print(f"API Key: {settings.GOOGLE_MAPS_API_KEY[:10]}...")
     
     db = SessionLocal()
     ai_service = AIService()
@@ -27,29 +28,41 @@ async def scrape_google_places():
     skipped_count = 0
     error_count = 0
     
+    # Check database connection
+    try:
+        existing_count = db.query(Accommodation).count()
+        print(f"Current accommodations in database: {existing_count}")
+    except Exception as e:
+        print(f"Database connection error: {e}")
+        return
+    
     try:
         async with GooglePlacesAgent() as agent:
             # Search for accommodations in Almaty
             print("\nSearching for accommodations...")
-            accommodations = await agent.search("accommodation", "алматы")
+            accommodations = await agent.search("accommodation", "Almaty")
             
             print(f"\nFound {len(accommodations)} accommodations")
             
             for i, acc_data in enumerate(accommodations, 1):
                 try:
+                    google_place_id = acc_data.get('google_place_id')
                     print(
                         f"\nProcessing {i}/{len(accommodations)}: "
                         f"{acc_data.get('name')}"
                     )
+                    print(f"  Place ID: {google_place_id}")
                     
-                    # Check if already exists
+                    # Check if already exists - force fresh query
                     existing = db.query(Accommodation).filter(
-                        Accommodation.google_place_id == 
-                        acc_data.get('google_place_id')
+                        Accommodation.google_place_id == google_place_id
                     ).first()
                     
                     if existing:
-                        print(f"  ✓ Already exists, skipping...")
+                        print(
+                            f"  ✓ Already exists (DB ID: {existing.id}), "
+                            f"skipping..."
+                        )
                         skipped_count += 1
                         continue
                     
@@ -77,7 +90,7 @@ async def scrape_google_places():
                     # Create accommodation record
                     accommodation = Accommodation(
                         name=acc_data.get('name'),
-                        google_place_id=acc_data.get('google_place_id'),
+                        google_place_id=google_place_id,
                         accommodation_type=acc_data.get('accommodation_type'),
                         description=acc_data.get('description'),
                         ai_generated_description=acc_data.get(
@@ -97,7 +110,9 @@ async def scrape_google_places():
                         reviews=acc_data.get('reviews'),
                         amenities=acc_data.get('amenities'),
                         data_sources=acc_data.get('data_sources'),
-                        online_activity_score=scores.get('online_activity_score'),
+                        online_activity_score=scores.get(
+                            'online_activity_score'
+                        ),
                         data_completeness_score=scores.get(
                             'data_completeness_score'
                         ),
@@ -110,16 +125,18 @@ async def scrape_google_places():
                     )
                     
                     db.add(accommodation)
-                    db.commit()
-                    added_count += 1
+                    db.flush()  # Get the ID without committing
                     
-                    print(f"  ✓ Added to database")
+                    print(f"  ✓ Added to database (ID: {accommodation.id})")
                     print(f"    Category: {accommodation.accommodation_type}")
                     print(
                         f"    Priority: {accommodation.priority_score}/10 "
                         f"({accommodation.lead_status})"
                     )
                     print(f"    Rating: {accommodation.rating or 'N/A'}")
+                    
+                    db.commit()
+                    added_count += 1
                     
                 except Exception as e:
                     error_count += 1
