@@ -5,8 +5,10 @@ from app.models import Venue
 from app.schemas import ParsingRequest
 from app.parsers.gis2_parser import Gis2Parser
 from app.ai.scoring_agent import ScoringAgent
-from app.ai.description_gen import DescriptionGenerator
-from app.ai.outreach_gen import OutreachGenerator
+from app.ai.description_gen import (
+    DescriptionGenerator,
+    OutreachGenerator,
+)
 
 router = APIRouter(prefix="/parsing", tags=["parsing"])
 

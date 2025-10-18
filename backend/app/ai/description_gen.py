@@ -6,6 +6,61 @@ settings = get_settings()
 client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
 
+class DescriptionGenerator:
+    """Генератор AI-описаний для объектов"""
+
+    async def generate_description(self, venue_data: dict) -> str:
+        """Генерирует привлекательное описание объекта"""
+        
+        prompt = f"""Создай привлекательное описание для туристического объекта на платформе MyTravel.kz.
+
+Объект: {venue_data.get('name')}
+Категория: {venue_data.get('category')}
+Адрес: {venue_data.get('address')}
+Удобства: {', '.join(venue_data.get('amenities', []))}
+Оригинальное описание: {venue_data.get('description', 'Не указано')}
+
+Требования:
+- Длина: 3-4 абзаца
+- Подчеркни уникальность и преимущества
+- Упомяни удобства
+- Создай атмосферу и эмоциональную привлекательность
+- Закончи призывом к бронированию
+- Пиши на русском языке
+
+Пример структуры:
+1. Вступление (что это за место)
+2. Описание условий и удобств
+3. Уникальные особенности
+4. Призыв к действию"""
+
+        try:
+            response = await client.chat.completions.create(
+                model=settings.OPENAI_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=500,
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            print(f"Description generation error: {e}")
+            return self._get_fallback_description(venue_data)
+    
+    def _get_fallback_description(self, venue_data: dict) -> str:
+        """Резервное описание если AI не сработал"""
+        name = venue_data.get('name', 'объект')
+        category = venue_data.get('category', 'туристический объект')
+        
+        return f"""Добро пожаловать в {name}!
+
+Мы предлагаем комфортабельное размещение в категории {category}. 
+Наш объект оборудован всем необходимым для приятного отдыха.
+
+Забронируйте проживание через MyTravel.kz и получите лучшие условия!"""
+
+
 class OutreachGenerator:
     """Генератор персонализированных сообщений для привлечения"""
 

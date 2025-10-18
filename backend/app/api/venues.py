@@ -5,8 +5,8 @@ from app.database import get_db
 from app.models import Venue, LeadStatus, CategoryEnum
 from app.schemas import VenueResponse, VenueCreate
 from app.ai.scoring_agent import ScoringAgent
-from app.ai.description_gen import DescriptionGenerator
-from app.ai.outreach_gen import OutreachGenerator
+from app.ai.description_gen import DescriptionGenerator, OutreachGenerator
+from sqlalchemy import func
 
 router = APIRouter(prefix="/venues", tags=["venues"])
 
@@ -125,7 +125,7 @@ async def get_stats(db: Session = Depends(get_db)):
     )
 
     avg_score = db.query(Venue).with_entities(
-        db.func.avg(Venue.score)
+        func.avg(Venue.score)
     ).scalar() or 0
 
     return {

@@ -4,7 +4,7 @@ from app.models import LeadStatus, CategoryEnum
 from typing import Dict, Tuple
 
 settings = get_settings()
-client = AsyncOpenAI(api_key=settings.OPEN_API_KEY)
+client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
 
 class ScoringAgent:
