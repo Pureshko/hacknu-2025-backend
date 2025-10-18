@@ -1,39 +1,47 @@
+version: '3.8'
+
 services:
-  postgres:
+  db:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: mytravel
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: mytravel
+      POSTGRES_PASSWORD: mytravel_pass
+      POSTGRES_DB: mytravel_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mytravel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
     build: ./backend
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    volumes:
-      - ./backend:/app
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:password@postgres:5432/mytravel
-    env_file:
-      - ./backend/.env
+      DATABASE_URL: postgresql://mytravel:mytravel_pass@db:5432/mytravel_db
+      TWOGIS_API_KEY: 40160774-dbe8-4f70-91c9-697adac3e650
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
     depends_on:
-      - postgres
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   frontend:
     build: ./frontend
-    command: npm run dev -- --host
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: http://localhost:8000
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    ports:
-      - "5173:5173"
-    depends_on:
-      - backend
+    command: npm start
 
 volumes:
   postgres_data:
