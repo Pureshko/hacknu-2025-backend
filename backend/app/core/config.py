@@ -26,11 +26,7 @@ class Settings(BaseSettings):
     
     # Regions
     REGIONS: list = [
-        "Almaty",
-        "Astana",
-        "Karaganda",
-        "Shymkent",
-        "Aktau"
+        "Almaty"
     ]
     
     class Config:
