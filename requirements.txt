@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 sqlalchemy==2.0.23
@@ -17,3 +18,17 @@ aiohttp==3.9.1
 asyncpg==0.29.0
 redis==5.0.1
 celery==5.3.4
+=======
+fastapi
+fastapi_sso
+numpy
+passlib
+pydantic
+pydantic_core
+pydantic_settings
+python_jose
+redis
+SQLAlchemy=
+sqlmodel
+alembic
+>>>>>>> c29e14ead9c744e707a0699f929ea2c61be6e6bf
