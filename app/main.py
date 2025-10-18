@@ -7,7 +7,7 @@ import asyncio
 
 from .core.database import engine, get_db, Base
 from .core.config import settings
-from .models.accommodation import Accommodation
+from .models.accomodation import Accommodation
 from .agents.twogis_agent import TwoGISAgent
 from .services.ai_service import AIService
 from .services.outreach_service import OutreachService
