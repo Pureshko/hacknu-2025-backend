@@ -253,3 +253,58 @@ async def export_csv(db: Session = Depends(get_db)):
             "Content-Disposition": "attachment; filename=accommodations.csv"
         }
     )
+
+@app.post("/api/scan/google-places")
+async def start_google_places_scan(
+    region: str = "Almaty",
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    db: Session = Depends(get_db)
+):
+    """Start scanning Google Places for accommodations"""
+    background_tasks.add_task(scan_google_places, region, db)
+    return {"status": "started", "region": region, "source": "google_places"}
+
+
+async def scan_google_places(region: str, db: Session):
+    """Scan Google Places for accommodations"""
+    from .agents.google_maps_agent import GooglePlacesAgent
+    
+    ai_service = AIService()
+    
+    async with GooglePlacesAgent() as agent:
+        accommodations = await agent.search("accommodation", region)
+        
+        for acc_data in accommodations:
+            # Check if already exists
+            existing = db.query(Accommodation).filter(
+                Accommodation.google_place_id == acc_data.get('google_place_id')
+            ).first()
+            
+            if existing:
+                continue
+            
+            # Calculate scores
+            scores = ai_service.calculate_priority_score(acc_data)
+            
+            # Generate description
+            if settings.OPENAI_API_KEY:
+                description = await ai_service.generate_description(acc_data)
+            else:
+                description = ai_service._fallback_description(acc_data)
+            
+            # Create record
+            accommodation = Accommodation(
+                **{k: v for k, v in acc_data.items() if k in [
+                    'name', 'google_place_id', 'latitude', 'longitude', 
+                    'address', 'region', 'phone', 'website', 
+                    'accommodation_type', 'data_sources', 'rating',
+                    'description', 'price_min', 'price_max', 'photos',
+                    'review_count', 'reviews', 'amenities'
+                ]},
+                **scores,
+                ai_generated_description=description
+            )
+            
+            db.add(accommodation)
+        
+        db.commit()

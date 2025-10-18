@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Search, AlertCircle, CheckCircle } from 'lucide-react';
 import { accommodationService } from '../services/api';
+const [dataSource, setDataSource] = useState('2gis');
 
 const Scanner = () => {
   const [selectedRegion, setSelectedRegion] = useState('Almaty');
@@ -20,16 +21,22 @@ const Scanner = () => {
     setStatus(null);
 
     try {
-      await accommodationService.startScan(selectedRegion);
+      const endpoint = dataSource === 'google' 
+        ? '/api/scan/google-places' 
+        : '/api/scan/start';
+      
+      await api.post(endpoint, null, { 
+        params: { region: selectedRegion } 
+      });
+      
       setStatus({
         type: 'success',
-        message: `Scan started for ${selectedRegion}. 
-                 This will run in the background.`
+        message: `Scan started for ${selectedRegion} using ${dataSource}.`
       });
     } catch (error) {
       setStatus({
         type: 'error',
-        message: 'Failed to start scan. Please try again.'
+        message: 'Failed to start scan.'
       });
     } finally {
       setScanning(false);
@@ -45,6 +52,21 @@ const Scanner = () => {
         <p className="text-gray-600 mt-1">
           Scan regions for new accommodation data
         </p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Data Source
+        </label>
+        <select
+          value={dataSource}
+          onChange={(e) => setDataSource(e.target.value)}
+          className="w-full px-4 py-3 border border-gray-300 
+                  rounded-lg focus:ring-2 focus:ring-primary-500"
+        >
+          <option value="2gis">2GIS</option>
+          <option value="google">Google Places</option>
+        </select>
       </div>
 
       <div className="card max-w-2xl">
