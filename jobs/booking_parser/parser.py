@@ -47,4 +47,3 @@ if not current_domain.endswith(target_domain):
 print("Arrived at:", driver.current_url)
 
 
-
