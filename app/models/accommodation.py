@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, Integer, String, Float, DateTime, JSON, 
-    Enum, Text, Boolean
+    Enum, Text, Boolean, Index
 )
 from sqlalchemy.sql import func
 from ..core.database import Base
@@ -33,33 +33,33 @@ class Accommodation(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     # Basic info
-    name = Column(String, nullable=False, index=True)
-    accommodation_type = Column(Enum(AccommodationType))
+    name = Column(String(500), nullable=False, index=True)
+    accommodation_type = Column(Enum(AccommodationType), index=True)
     description = Column(Text)
     ai_generated_description = Column(Text)
     
     # Location
     latitude = Column(Float)
     longitude = Column(Float)
-    address = Column(String)
-    region = Column(String, index=True)
+    address = Column(String(1000))
+    region = Column(String(200), index=True)
     
     # Contact info
-    phone = Column(String)
-    email = Column(String)
-    website = Column(String)
-    instagram = Column(String)
-    telegram = Column(String)
-    whatsapp = Column(String)
+    phone = Column(String(50))
+    email = Column(String(255))
+    website = Column(String(500))
+    instagram = Column(String(255))
+    telegram = Column(String(255))
+    whatsapp = Column(String(50))
     
     # Business details
     room_count = Column(Integer)
     price_min = Column(Float)
     price_max = Column(Float)
-    amenities = Column(JSON)  # Wi-Fi, parking, kitchen, etc.
+    amenities = Column(JSON)
     
     # Media
-    photos = Column(JSON)  # List of photo URLs
+    photos = Column(JSON)
     
     # Reviews and ratings
     rating = Column(Float)
@@ -67,10 +67,13 @@ class Accommodation(Base):
     reviews = Column(JSON)
     
     # Priority and analysis
-    priority_score = Column(Float, index=True)  # 1-10
-    lead_status = Column(Enum(LeadStatus))
-    verification_status = Column(Enum(VerificationStatus), 
-                                 default=VerificationStatus.NEW)
+    priority_score = Column(Float, index=True)
+    lead_status = Column(Enum(LeadStatus), index=True)
+    verification_status = Column(
+        Enum(VerificationStatus), 
+        default=VerificationStatus.NEW,
+        index=True
+    )
     
     # Analytics metrics
     online_activity_score = Column(Float)
@@ -78,10 +81,10 @@ class Accommodation(Base):
     popularity_score = Column(Float)
     commercial_potential_score = Column(Float)
     
-    # Source tracking
-    data_sources = Column(JSON)  # List of sources where found
-    twogis_id = Column(String, unique=True, index=True)
-    google_place_id = Column(String)
+    # Source tracking - UNIQUE constraints for deduplication
+    data_sources = Column(JSON)
+    twogis_id = Column(String(100), unique=True, index=True, nullable=True)
+    google_place_id = Column(String(255), unique=True, index=True, nullable=True)
     
     # Outreach
     outreach_template = Column(Text)
@@ -89,8 +92,19 @@ class Accommodation(Base):
     outreach_response = Column(Text)
     
     # Timestamps
-    created_at = Column(DateTime(timezone=True), 
-                       server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), 
-                       onupdate=func.now())
+    created_at = Column(
+        DateTime(timezone=True), 
+        server_default=func.now(),
+        nullable=False
+    )
+    updated_at = Column(
+        DateTime(timezone=True), 
+        onupdate=func.now()
+    )
     last_checked_at = Column(DateTime(timezone=True))
+    
+    # Composite indexes for common queries
+    __table_args__ = (
+        Index('ix_accommodation_region_type', 'region', 'accommodation_type'),
+        Index('ix_accommodation_priority_status', 'priority_score', 'lead_status'),
+    )
